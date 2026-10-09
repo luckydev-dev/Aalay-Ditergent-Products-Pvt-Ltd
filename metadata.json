@@ -1,0 +1,6 @@
+{
+  "name": "AALEY - Detergent Powder & Cake Soap Platform",
+  "description": "Aalay is a premier Indian detergent company offering powerful washing powder and detergent cake soap with active stain removal, daily reward plans, and instant payouts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

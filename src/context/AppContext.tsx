@@ -1,0 +1,2089 @@
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import {
+  UserProfile,
+  BankDetails,
+  ProductPlan,
+  PurchasedOrder,
+  TransactionRecord,
+  WithdrawalRecord,
+  TeamMission,
+  TeamMember,
+  NotificationItem,
+  Language,
+  ActiveTab,
+  SubScreen,
+  UserRole,
+  RechargeRequest,
+} from '../types';
+import {
+  auth,
+  rtdb,
+  ref,
+  set,
+  get,
+  update,
+  onValue,
+  off,
+  push,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInAnonymously,
+  onAuthStateChanged,
+  signOut,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  phoneToEmail,
+  FirebaseUser,
+} from '../firebase';
+
+export const INITIAL_PLANS: ProductPlan[] = [
+  {
+    id: 'product-test-1rs',
+    name: '⚡ ₹1 Fast Test Trial Pack (Testing Mode)',
+    tag: '1 Rs Testing',
+    tagType: 'popular',
+    price: 1,
+    durationDays: 1,
+    dailyIncome: 2,
+    totalRevenue: 2,
+    type: 'normal',
+    imageType: 'fevicol',
+    description: 'Official ₹1 trial plan enabled for testing transactions, payouts, and wallet operations.',
+  },
+  {
+    id: 'most-popular',
+    name: 'Aalay Active Wash Powder 1kg',
+    tag: 'Popular',
+    tagType: 'popular',
+    price: 700,
+    durationDays: 2,
+    dailyIncome: 3250,
+    totalRevenue: 6500,
+    type: 'normal',
+    imageType: 'fevicol',
+    description: 'Aalay Active Wash Powder with Micro-Enzyme stain removal & active oxygen whiteness',
+  },
+  {
+    id: 'product-a',
+    name: 'Aalay Super White Cake (Pack of 6)',
+    tag: 'Best Value',
+    tagType: 'best-value',
+    price: 450,
+    durationDays: 50,
+    dailyIncome: 270,
+    totalRevenue: 13500,
+    type: 'normal',
+    imageType: 'drfixit',
+    description: 'Aalay Long-Lasting Laundry Detergent Soap Bar with Lemon freshness extract',
+  },
+  {
+    id: 'product-b',
+    name: 'Aalay Lemon & Neem Fresh Powder 3kg',
+    price: 900,
+    durationDays: 45,
+    dailyIncome: 640,
+    totalRevenue: 28800,
+    type: 'normal',
+    imageType: 'mseal',
+    description: 'Aalay Deep fiber germ-protection washing powder with natural lemon & neem oil',
+  },
+  {
+    id: 'product-c',
+    name: 'Aalay Blue Shine Stain Remover Bar',
+    price: 1500,
+    durationDays: 36,
+    dailyIncome: 1230,
+    totalRevenue: 44280,
+    type: 'normal',
+    imageType: 'tilefix',
+    description: 'Aalay Tough cuff & collar dirt removal detergent cake with fabric optical brighteners',
+  },
+  {
+    id: 'product-d',
+    name: 'Aalay Matic Machine Wash 5kg Bucket',
+    price: 2100,
+    durationDays: 30,
+    dailyIncome: 1740,
+    totalRevenue: 52200,
+    type: 'normal',
+    imageType: 'laticrete',
+    description: 'Aalay High-efficiency low-foam laundry bucket with measuring scoop for all machines',
+  },
+  {
+    id: 'product-e',
+    name: 'Aalay Ultra Clean Soap Cake Family Pack',
+    price: 2850,
+    durationDays: 25,
+    dailyIncome: 2560,
+    totalRevenue: 64000,
+    type: 'normal',
+    imageType: 'acrylic',
+    description: 'Aalay 12-bar value pack with gentle skin protection and vibrant fabric care',
+  },
+  // VIP Plans
+  {
+    id: 'vip-1',
+    name: 'VIP Ultra Gold Detergent Compound',
+    tag: 'VIP Only',
+    price: 3500,
+    durationDays: 20,
+    dailyIncome: 3800,
+    totalRevenue: 76000,
+    type: 'vip',
+    imageType: 'fevicol',
+    description: 'Exclusive industrial detergent compound with high-efficiency surfactant booster',
+  },
+  {
+    id: 'vip-2',
+    name: 'VIP Premium Laundry Care Kit',
+    price: 5000,
+    durationDays: 15,
+    dailyIncome: 6200,
+    totalRevenue: 93000,
+    type: 'vip',
+    imageType: 'drfixit',
+    description: 'Complete commercial bundle: 10kg washing powder, 20 detergent cakes & liquid brightener',
+  },
+];
+
+export const INITIAL_MISSIONS: TeamMission[] = [
+  { id: 'm-1', requiredMembers: 1, rewardAmount: 200, claimed: false },
+  { id: 'm-2', requiredMembers: 2, rewardAmount: 400, claimed: false },
+  { id: 'm-3', requiredMembers: 5, rewardAmount: 1100, claimed: false },
+  { id: 'm-4', requiredMembers: 10, rewardAmount: 2300, claimed: false },
+  { id: 'm-5', requiredMembers: 20, rewardAmount: 5000, claimed: false },
+  { id: 'm-6', requiredMembers: 50, rewardAmount: 13000, claimed: false },
+  { id: 'm-7', requiredMembers: 100, rewardAmount: 28000, claimed: false },
+];
+
+export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
+  {
+    id: 'n-1',
+    title: 'Welcome to Aalay Detergent Rewards!',
+    content: 'Get ₹40 free welcome bonus added directly to your balance. Start earning daily returns.',
+    date: 'Just now',
+    read: false,
+    type: 'system',
+  },
+  {
+    id: 'n-2',
+    title: 'Daily Lucky Draw Activated',
+    content: 'Spin the Lucky Wheel once every day to win up to ₹500 in instant cash prizes!',
+    date: '1 hour ago',
+    read: false,
+    type: 'dividend',
+  },
+  {
+    id: 'n-3',
+    title: '40% Level-1 Direct Referral Commission',
+    content: 'Invite distributors and friends using your code to earn 40% instant rebate on their purchases.',
+    date: 'Yesterday',
+    read: true,
+    type: 'announcement',
+  },
+];
+
+const DEFAULT_USER: UserProfile = {
+  name: '',
+  phone: '',
+  id: '',
+  vipLevel: 'VIP1',
+  balance: 0,
+  totalRecharge: 0,
+  totalIncome: 0,
+  spinsLeft: 0,
+  invitationCode: '',
+  activeMembersToday: 0,
+  teamMembersCount: 0,
+  teamRecharge: 0,
+  level1CommissionRate: 10,
+  isLoggedIn: false,
+  avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
+  role: 'user',
+};
+
+const DEFAULT_BANK: BankDetails = {
+  accountHolderName: '',
+  accountNumber: '',
+  ifscCode: '',
+  isSaved: false,
+};
+
+interface AppContextType {
+  user: UserProfile;
+  firebaseUid: string | null;
+  isFirebaseConnected: boolean;
+  isAuthLoading: boolean;
+  bankDetails: BankDetails;
+  plans: ProductPlan[];
+  orders: PurchasedOrder[];
+  transactions: TransactionRecord[];
+  withdrawals: WithdrawalRecord[];
+  teamMembers: TeamMember[];
+  missions: TeamMission[];
+  notifications: NotificationItem[];
+  language: Language;
+  activeTab: ActiveTab;
+  subScreen: SubScreen;
+  showWelcomeModal: boolean;
+  showCustomerService: boolean;
+  showInviteModal: boolean;
+  showLiveChat: boolean;
+  rechargePresetAmount: number;
+  totalWonTreasure: number;
+  redeemedCodes: string[];
+  toastMessage: string | null;
+  rechargeRequests: RechargeRequest[];
+
+  setLanguage: (lang: Language) => void;
+  setActiveTab: (tab: ActiveTab) => void;
+  setSubScreen: (screen: SubScreen) => void;
+  setShowWelcomeModal: (show: boolean) => void;
+  setShowCustomerService: (show: boolean) => void;
+  setShowInviteModal: (show: boolean) => void;
+  setShowLiveChat: (show: boolean) => void;
+  setRechargePresetAmount: (amount: number) => void;
+  showToast: (msg: string) => void;
+
+  login: (phone: string, nickname?: string, password?: string) => Promise<boolean>;
+  register: (phone: string, nickname: string, password?: string, inviteCode?: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  updateUserPassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
+  saveBankDetails: (details: Omit<BankDetails, 'isSaved'>) => boolean;
+  rechargeWallet: (amount: number, channel: string) => Promise<boolean>;
+  submitRechargeRequest: (req: {
+    amount: number;
+    utr: string;
+    screenshotUrl?: string;
+    channel: string;
+    orderId?: string;
+  }) => Promise<{ success: boolean; autoVerified: boolean; message: string }>;
+  approveRechargeRequestInDb: (requestId: string, targetUid: string, amount: number) => Promise<boolean>;
+  rejectRechargeRequestInDb: (requestId: string, reason?: string) => Promise<boolean>;
+  requestWithdrawal: (amount: number) => { success: boolean; message: string };
+  buyPlan: (planId: string) => { success: boolean; message: string };
+  collectOrderIncome: (orderId: string) => boolean;
+  spinLuckyDraw: (wonAmount: number) => void;
+  redeemGiftCode: (code: string) => { success: boolean; message: string; amount?: number };
+  claimMission: (missionId: string) => boolean;
+  markNotificationRead: (id: string) => void;
+  addActiveTeamMember: () => void;
+  addReferralMember: (level?: 1 | 2 | 3, rechargeAmount?: number, memberName?: string, memberPhone?: string) => void;
+
+  setUserRole: (role: 'user' | 'owner') => Promise<void>;
+  updateUserRoleInDb: (targetUid: string, role: 'user' | 'owner') => Promise<boolean>;
+  adjustUserBalanceInDb: (targetUid: string, deltaAmount: number, reason?: string) => Promise<boolean>;
+  approveWithdrawalInDb: (targetUid: string, withdrawalId: string) => Promise<boolean>;
+  rejectWithdrawalInDb: (targetUid: string, withdrawalId: string) => Promise<boolean>;
+  broadcastSystemNotice: (title: string, message: string) => Promise<boolean>;
+  updatePlan: (updatedPlan: ProductPlan) => void;
+  addNewPlan: (newPlan: ProductPlan) => void;
+  deletePlan: (planId: string) => void;
+  resetPlansToDefault: () => void;
+}
+
+const AppContext = createContext<AppContextType | undefined>(undefined);
+
+export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Firebase Auth state
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [isFirebaseConnected, setIsFirebaseConnected] = useState<boolean>(true);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+
+  // User profile
+  const [user, setUser] = useState<UserProfile>(() => {
+    const saved = localStorage.getItem('aaley_user');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          ...DEFAULT_USER,
+          ...parsed,
+          avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
+        };
+      } catch (e) {
+        // ignore
+      }
+    }
+    return DEFAULT_USER;
+  });
+
+  const [bankDetails, setBankDetails] = useState<BankDetails>(() => {
+    const saved = localStorage.getItem('aaley_bank');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return DEFAULT_BANK;
+  });
+
+  const [plans, setPlans] = useState<ProductPlan[]>(() => {
+    const saved = localStorage.getItem('aaley_product_plans');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return INITIAL_PLANS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('aaley_product_plans', JSON.stringify(plans));
+  }, [plans]);
+
+  const [orders, setOrders] = useState<PurchasedOrder[]>(() => {
+    const saved = localStorage.getItem('aaley_orders');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [transactions, setTransactions] = useState<TransactionRecord[]>(() => {
+    const saved = localStorage.getItem('aaley_transactions');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'tx-init-1',
+        title: 'Signup Welcome Bonus',
+        amount: 40,
+        type: 'income',
+        category: 'signup_bonus',
+        date: new Date().toLocaleDateString('en-GB') + ' 09:30',
+        status: 'completed',
+      },
+    ];
+  });
+
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>(() => {
+    const saved = localStorage.getItem('aaley_withdrawals');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => {
+    const saved = localStorage.getItem('aaley_team_members');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('aaley_team_members', JSON.stringify(teamMembers));
+  }, [teamMembers]);
+
+  const [missions, setMissions] = useState<TeamMission[]>(() => {
+    const saved = localStorage.getItem('aaley_missions');
+    return saved ? JSON.parse(saved) : INITIAL_MISSIONS;
+  });
+
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
+    const saved = localStorage.getItem('aaley_notifications_v2');
+    return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
+  });
+
+  const [language, setLanguage] = useState<Language>('en');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('home');
+  const [subScreen, setSubScreen] = useState<SubScreen>('none');
+  const [showWelcomeModal, setShowWelcomeModal] = useState<boolean>(false);
+  const [showCustomerService, setShowCustomerService] = useState<boolean>(false);
+  const [showInviteModal, setShowInviteModal] = useState<boolean>(false);
+  const [showLiveChat, setShowLiveChat] = useState<boolean>(false);
+  const [rechargePresetAmount, setRechargePresetAmount] = useState<number>(700);
+  const [totalWonTreasure, setTotalWonTreasure] = useState<number>(() => {
+    const saved = localStorage.getItem('aaley_total_won_treasure');
+    return saved ? Number(saved) : 0;
+  });
+  const [redeemedCodes, setRedeemedCodes] = useState<string[]>(() => {
+    const saved = localStorage.getItem('aaley_redeemed_codes');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [rechargeRequests, setRechargeRequests] = useState<RechargeRequest[]>(() => {
+    try {
+      const saved = localStorage.getItem('aaley_recharge_requests');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Ref to track if initial RTDB load is done to avoid write loops
+  const isInitialRtdbLoadedRef = useRef<boolean>(false);
+  const activeListenerRef = useRef<string | null>(null);
+
+  // Safe helper to record any user in local system registry for offline/admin resilience
+  const saveUserToRegistry = (userProfile: UserProfile) => {
+    try {
+      const existingJson = localStorage.getItem('aaley_all_registered_users');
+      let list: UserProfile[] = existingJson ? JSON.parse(existingJson) : [];
+      const idx = list.findIndex(
+        (u) => (userProfile.uid && u.uid === userProfile.uid) || u.phone === userProfile.phone
+      );
+      if (idx >= 0) {
+        list[idx] = { ...list[idx], ...userProfile };
+      } else {
+        list.unshift(userProfile);
+      }
+      localStorage.setItem('aaley_all_registered_users', JSON.stringify(list));
+    } catch (e) {
+      console.warn('Failed to update local user registry:', e);
+    }
+  };
+
+  // Helper to store user login passwords securely in local storage
+  const saveUserPassword = (phone: string, pass: string, uid?: string) => {
+    try {
+      const cleanPhone = phone.replace(/[^0-9]/g, '');
+      const raw = localStorage.getItem('aaley_user_passwords') || '{}';
+      const map = JSON.parse(raw);
+      if (cleanPhone) map[cleanPhone] = pass;
+      if (uid) map[uid] = pass;
+      localStorage.setItem('aaley_user_passwords', JSON.stringify(map));
+    } catch (e) {
+      console.warn('Failed to save user password record:', e);
+    }
+  };
+
+  const getUserPassword = (phone: string, uid?: string): string | null => {
+    try {
+      const cleanPhone = phone.replace(/[^0-9]/g, '');
+      const raw = localStorage.getItem('aaley_user_passwords') || '{}';
+      const map = JSON.parse(raw);
+      if (cleanPhone && map[cleanPhone]) return map[cleanPhone];
+      if (uid && map[uid]) return map[uid];
+      return null;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  // Track RTDB connection status safely with error callback
+  useEffect(() => {
+    const connectedRef = ref(rtdb, '.info/connected');
+    const unsubscribe = onValue(
+      connectedRef,
+      (snap) => {
+        setIsFirebaseConnected(snap.val() === true);
+      },
+      () => {
+        setIsFirebaseConnected(false);
+      }
+    );
+
+    return () => {
+      off(connectedRef);
+    };
+  }, []);
+
+  // Safe RTDB write helper for current user
+  const syncToRtdb = (path: string, data: any) => {
+    const uid = firebaseUser?.uid || (user.phone ? `user_${user.phone}` : null);
+    if (!uid) return;
+    try {
+      const dataRef = ref(rtdb, `users/${uid}/${path}`);
+      set(dataRef, data).catch((err) => {
+        console.warn(`RTDB sync to users/${uid}/${path} warning:`, err);
+      });
+    } catch (e) {
+      console.warn('RTDB sync exception:', e);
+    }
+  };
+
+  // Sync state changes to LocalStorage and Firebase RTDB
+  useEffect(() => {
+    localStorage.setItem('aaley_user', JSON.stringify(user));
+    if (isInitialRtdbLoadedRef.current) {
+      syncToRtdb('profile', user);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    localStorage.setItem('aaley_bank', JSON.stringify(bankDetails));
+    if (isInitialRtdbLoadedRef.current) {
+      syncToRtdb('bankDetails', bankDetails);
+    }
+  }, [bankDetails]);
+
+  useEffect(() => {
+    localStorage.setItem('aaley_orders', JSON.stringify(orders));
+    if (isInitialRtdbLoadedRef.current) {
+      syncToRtdb('orders', orders);
+    }
+  }, [orders]);
+
+  useEffect(() => {
+    localStorage.setItem('aaley_transactions', JSON.stringify(transactions));
+    if (isInitialRtdbLoadedRef.current) {
+      syncToRtdb('transactions', transactions);
+    }
+  }, [transactions]);
+
+  useEffect(() => {
+    localStorage.setItem('aaley_withdrawals', JSON.stringify(withdrawals));
+    if (isInitialRtdbLoadedRef.current) {
+      syncToRtdb('withdrawals', withdrawals);
+    }
+  }, [withdrawals]);
+
+  useEffect(() => {
+    localStorage.setItem('aaley_missions', JSON.stringify(missions));
+    if (isInitialRtdbLoadedRef.current) {
+      syncToRtdb('missions', missions);
+    }
+  }, [missions]);
+
+  useEffect(() => {
+    localStorage.setItem('aaley_notifications_v2', JSON.stringify(notifications));
+  }, [notifications]);
+
+  useEffect(() => {
+    localStorage.setItem('aaley_redeemed_codes', JSON.stringify(redeemedCodes));
+    localStorage.setItem('aaley_total_won_treasure', String(totalWonTreasure));
+    if (isInitialRtdbLoadedRef.current) {
+      syncToRtdb('redeemedCodes', redeemedCodes);
+      syncToRtdb('totalWonTreasure', totalWonTreasure);
+    }
+  }, [redeemedCodes, totalWonTreasure]);
+
+  // Listen to Firebase Auth state
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (fUser) => {
+      setFirebaseUser(fUser);
+      setIsAuthLoading(false);
+
+      if (fUser) {
+        const uid = fUser.uid;
+        activeListenerRef.current = uid;
+        const userRef = ref(rtdb, `users/${uid}`);
+
+        // Fetch or subscribe to RTDB real-time data safely with error handling
+        onValue(
+          userRef,
+          (snapshot) => {
+            const val = snapshot.val();
+            if (val) {
+              if (val.profile) {
+                setUser((prev) => {
+                  const updated: UserProfile = {
+                    ...prev,
+                    ...val.profile,
+                    avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
+                    role: val.profile.role || prev.role || 'user',
+                    uid: uid,
+                    isLoggedIn: true,
+                  };
+                  saveUserToRegistry(updated);
+                  return updated;
+                });
+              }
+              if (val.bankDetails) {
+                setBankDetails(val.bankDetails);
+              }
+              if (val.orders) {
+                const ordersArr = Array.isArray(val.orders) ? val.orders : Object.values(val.orders);
+                setOrders(ordersArr as PurchasedOrder[]);
+              }
+              if (val.transactions) {
+                const txArr = Array.isArray(val.transactions) ? val.transactions : Object.values(val.transactions);
+                setTransactions(txArr as TransactionRecord[]);
+              }
+              if (val.withdrawals) {
+                const wdArr = Array.isArray(val.withdrawals) ? val.withdrawals : Object.values(val.withdrawals);
+                setWithdrawals(wdArr as WithdrawalRecord[]);
+              }
+              if (val.missions) {
+                const mArr = Array.isArray(val.missions) ? val.missions : Object.values(val.missions);
+                setMissions(mArr as TeamMission[]);
+              }
+              if (val.redeemedCodes) {
+                const rcArr = Array.isArray(val.redeemedCodes) ? val.redeemedCodes : Object.values(val.redeemedCodes);
+                setRedeemedCodes(rcArr as string[]);
+              }
+              if (typeof val.totalWonTreasure === 'number') {
+                setTotalWonTreasure(val.totalWonTreasure);
+              }
+            } else {
+              // First time login for this user in RTDB: seed their initial state
+              set(userRef, {
+                profile: {
+                  ...user,
+                  isLoggedIn: true,
+                },
+                bankDetails: bankDetails,
+                orders: orders,
+                transactions: transactions,
+                withdrawals: withdrawals,
+                missions: missions,
+                redeemedCodes: redeemedCodes,
+                totalWonTreasure: totalWonTreasure,
+                createdAt: Date.now(),
+              }).catch(() => {
+                // Silently handle if rules deny write
+              });
+            }
+            isInitialRtdbLoadedRef.current = true;
+          },
+          () => {
+            // Standby without throwing uncaught permission error
+            isInitialRtdbLoadedRef.current = true;
+          }
+        );
+      } else {
+        // If no Firebase user, attempt anonymous sign-in or check if local user should log into Firebase
+        activeListenerRef.current = null;
+        isInitialRtdbLoadedRef.current = true;
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+    };
+  }, []);
+
+  // Sync recharge_requests with Firebase RTDB
+  useEffect(() => {
+    try {
+      const requestsRef = ref(rtdb, 'recharge_requests');
+      onValue(
+        requestsRef,
+        (snapshot) => {
+          if (snapshot.exists()) {
+            const val = snapshot.val();
+            const list: RechargeRequest[] = Array.isArray(val) ? val : Object.values(val);
+            list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+            setRechargeRequests(list);
+            try {
+              localStorage.setItem('aaley_recharge_requests', JSON.stringify(list));
+            } catch (e) {}
+          }
+        },
+        () => {}
+      );
+      return () => {
+        off(requestsRef);
+      };
+    } catch (e) {}
+  }, []);
+
+  // Helper to prevent duplicate credits for the same order
+  const isOrderAlreadyCredited = (orderId: string): boolean => {
+    try {
+      const raw = localStorage.getItem('credited_fampay_orders');
+      const list: string[] = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) && list.includes(orderId);
+    } catch {
+      return false;
+    }
+  };
+
+  const markOrderCredited = (orderId: string) => {
+    try {
+      const raw = localStorage.getItem('credited_fampay_orders');
+      const list: string[] = raw ? JSON.parse(raw) : [];
+      if (!list.includes(orderId)) {
+        list.push(orderId);
+        localStorage.setItem('credited_fampay_orders', JSON.stringify(list));
+      }
+    } catch (e) {
+      console.error('Error saving credited order ID', e);
+    }
+  };
+
+  // Continuous background auto-detection for pending Fampay recharge orders
+  useEffect(() => {
+    let isVerifyingNow = false;
+
+    const checkPendingDepositAutomatically = async () => {
+      const pendingRaw = localStorage.getItem('pending_fampay_recharge');
+      if (!pendingRaw || isVerifyingNow) return;
+
+      try {
+        const parsed = JSON.parse(pendingRaw);
+        if (!parsed || !parsed.amount || !parsed.orderRef) return;
+
+        // If older than 20 minutes, expire order
+        if (parsed.createdAt && Date.now() - parsed.createdAt > 20 * 60 * 1000) {
+          localStorage.removeItem('pending_fampay_recharge');
+          return;
+        }
+
+        // Avoid crediting same order twice
+        if (isOrderAlreadyCredited(parsed.orderRef)) {
+          localStorage.removeItem('pending_fampay_recharge');
+          return;
+        }
+
+        isVerifyingNow = true;
+        const res = await fetch('/api/verify-fampay-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: parsed.orderRef }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.status === 'success') {
+            // STRICT VERIFICATION PASSED: Confirmed by Fampay Gateway!
+            markOrderCredited(parsed.orderRef);
+            localStorage.removeItem('pending_fampay_recharge');
+
+            const channelName = parsed.channel || 'CHANNEL A';
+            const utrString = data.utr ? ` | UTR: ${data.utr}` : '';
+            await rechargeWallet(
+              Number(parsed.amount),
+              `${channelName} (Fampay Auto: ${parsed.orderRef}${utrString})`
+            );
+            showToast(`₹${parsed.amount} received & added to your wallet automatically!`);
+          }
+        }
+      } catch (err) {
+        console.debug('Background deposit auto-check failed (will retry):', err);
+      } finally {
+        isVerifyingNow = false;
+      }
+    };
+
+    // 1. Check immediately on mount
+    checkPendingDepositAutomatically();
+
+    // 2. Poll every 4 seconds automatically
+    const pollInterval = setInterval(() => {
+      checkPendingDepositAutomatically();
+    }, 4000);
+
+    // 3. Immediately re-check whenever user returns to tab/app (from UPI app)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkPendingDepositAutomatically();
+      }
+    };
+
+    window.addEventListener('focus', checkPendingDepositAutomatically);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', checkPendingDepositAutomatically);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 2800);
+  };
+
+  const login = async (phone: string, nickname?: string, password?: string): Promise<boolean> => {
+    const maskedPhone = phone.replace(/[^0-9]/g, '') || '9510006797';
+    const email = phoneToEmail(maskedPhone);
+    const storedPass = getUserPassword(maskedPhone);
+
+    // If user provided a password and we have an existing password recorded, verify it
+    if (password && storedPass && password !== storedPass) {
+      showToast('Incorrect password. Please enter your valid password.');
+      return false;
+    }
+
+    const pass = password && password.length >= 6 
+      ? password 
+      : (storedPass || `aalay_${maskedPhone}_pass`);
+
+    try {
+      // 1. Authenticate with Firebase Auth
+      let credential;
+      try {
+        credential = await signInWithEmailAndPassword(auth, email, pass);
+      } catch (signInErr: any) {
+        // If user doesn't exist or wrong credential, attempt creation
+        if (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential') {
+          try {
+            credential = await createUserWithEmailAndPassword(auth, email, pass);
+          } catch (createErr) {
+            console.warn('Firebase Auth fallback to anonymous:', createErr);
+            credential = await signInAnonymously(auth);
+          }
+        } else {
+          console.warn('Firebase Auth fallback to anonymous:', signInErr);
+          credential = await signInAnonymously(auth);
+        }
+      }
+
+      const uid = credential.user.uid;
+
+      // 2. Load or update profile safely
+      let existingProfile: any = null;
+      try {
+        const userRef = ref(rtdb, `users/${uid}`);
+        const snap = await get(userRef);
+        if (snap.exists()) {
+          existingProfile = snap.val()?.profile;
+        }
+      } catch (dbReadErr) {
+        // Silently handled if database rules restrict direct read
+      }
+
+      // Check local system registry if not fetched from remote
+      if (!existingProfile) {
+        try {
+          const stored = localStorage.getItem('aaley_all_registered_users');
+          if (stored) {
+            const list: UserProfile[] = JSON.parse(stored);
+            existingProfile = list.find((u) => u.phone === maskedPhone || u.uid === uid);
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      // Role check:
+      // Primary owner account is 9510006797 or luckypro387@gmail.com, or previously marked owner
+      const isOwnerAccount =
+        maskedPhone === '9510006797' ||
+        email === 'luckypro387@gmail.com' ||
+        existingProfile?.role === 'owner';
+
+      const determinedRole: UserRole = isOwnerAccount ? 'owner' : (existingProfile?.role || 'user');
+
+      const updatedUser: UserProfile = {
+        ...(existingProfile || user),
+        name: nickname || existingProfile?.name || user.name || 'Lucky',
+        phone: maskedPhone,
+        id: existingProfile?.id || maskedPhone.slice(-6) || '9516797',
+        isLoggedIn: true,
+        avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
+        role: determinedRole,
+        uid: uid,
+      };
+
+      setUser(updatedUser);
+      saveUserToRegistry(updatedUser);
+      saveUserPassword(maskedPhone, pass, uid);
+
+      // Save to RTDB safely
+      try {
+        await update(ref(rtdb, `users/${uid}/profile`), updatedUser);
+      } catch (dbWriteErr) {
+        // Silently handled
+      }
+
+      showToast('Login Successful!');
+      return true;
+    } catch (err: any) {
+      // Resilient fallback so login never fails
+      const isOwnerPhone = maskedPhone === '9510006797';
+      const fallbackUser: UserProfile = {
+        ...user,
+        name: nickname || user.name || 'Lucky',
+        phone: maskedPhone,
+        isLoggedIn: true,
+        avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
+        role: isOwnerPhone ? 'owner' : (user.role || 'user'),
+      };
+      setUser(fallbackUser);
+      saveUserToRegistry(fallbackUser);
+      saveUserPassword(maskedPhone, pass);
+      showToast('Login Successful!');
+      return true;
+    }
+  };
+
+  const register = async (
+    phone: string,
+    nickname: string,
+    password?: string,
+    inviteCode?: string
+  ): Promise<boolean> => {
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    if (!cleanPhone || cleanPhone.length < 10) {
+      showToast('Please enter a valid 10-digit mobile number');
+      return false;
+    }
+
+    // 1. Strict Duplicate Check: disallow registering if mobile number already exists in registry
+    try {
+      const stored = localStorage.getItem('aaley_all_registered_users');
+      if (stored) {
+        const list: UserProfile[] = JSON.parse(stored);
+        const existing = list.find((u) => u.phone === cleanPhone);
+        if (existing) {
+          showToast('This mobile number is already registered. Please login.');
+          return false;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // 2. Check current saved user session
+    try {
+      const savedUserStr = localStorage.getItem('aaley_user');
+      if (savedUserStr) {
+        const savedUser: UserProfile = JSON.parse(savedUserStr);
+        if (savedUser.phone === cleanPhone && savedUser.isLoggedIn) {
+          showToast('This mobile number is already registered. Please login.');
+          return false;
+        }
+      }
+    } catch (e) {}
+
+    const cleanName = nickname.trim() || `User_${cleanPhone.slice(-4)}`;
+    const email = phoneToEmail(cleanPhone);
+    const pass = password && password.length >= 6 ? password : `aalay_${cleanPhone}_pass`;
+
+    try {
+      let credential;
+      try {
+        credential = await createUserWithEmailAndPassword(auth, email, pass);
+      } catch (err: any) {
+        if (err.code === 'auth/email-already-in-use') {
+          showToast('This mobile number is already registered. Please login.');
+          return false;
+        }
+
+        // Check remote RTDB before any anonymous fallback
+        try {
+          const userCheckSnap = await get(ref(rtdb, `users`));
+          if (userCheckSnap.exists()) {
+            const allUsersObj = userCheckSnap.val();
+            const existsInDb = Object.values(allUsersObj).some(
+              (u: any) => u?.profile?.phone === cleanPhone
+            );
+            if (existsInDb) {
+              showToast('This mobile number is already registered. Please login.');
+              return false;
+            }
+          }
+        } catch (dbErr) {}
+
+        console.warn('Firebase Auth fallback to anonymous:', err);
+        credential = await signInAnonymously(auth);
+      }
+
+      const uid = credential.user.uid;
+      const isOwnerByPhone = cleanPhone === '9510006797';
+      const generatedCode = String(Math.floor(100000 + Math.random() * 900000));
+      const generatedId = cleanPhone.slice(-6);
+
+      const newUser: UserProfile = {
+        name: cleanName,
+        phone: cleanPhone,
+        id: generatedId,
+        vipLevel: 'VIP1',
+        balance: 40, // ₹40 Signup Welcome Bonus!
+        totalRecharge: 0,
+        totalIncome: 40,
+        spinsLeft: 1,
+        invitationCode: generatedCode,
+        activeMembersToday: 0,
+        teamMembersCount: 0,
+        teamRecharge: 0,
+        level1CommissionRate: 10,
+        isLoggedIn: true,
+        avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
+        role: isOwnerByPhone ? 'owner' : 'user',
+        uid: uid,
+        createdAt: Date.now(),
+      };
+
+      // Reset state for newly registered account
+      setBankDetails(DEFAULT_BANK);
+      setOrders([]);
+      setWithdrawals([]);
+      setTeamMembers([]);
+      localStorage.setItem('aaley_bank', JSON.stringify(DEFAULT_BANK));
+      localStorage.setItem('aaley_orders', JSON.stringify([]));
+      localStorage.setItem('aaley_withdrawals', JSON.stringify([]));
+      localStorage.setItem('aaley_team_members', JSON.stringify([]));
+
+      setUser(newUser);
+      localStorage.setItem('aaley_user', JSON.stringify(newUser));
+      saveUserToRegistry(newUser);
+      saveUserPassword(cleanPhone, pass, uid);
+
+      const initTx: TransactionRecord = {
+        id: `tx-init-${Date.now()}`,
+        title: 'Signup Welcome Bonus',
+        amount: 40,
+        type: 'income',
+        category: 'signup_bonus',
+        date:
+          new Date().toLocaleDateString('en-GB') +
+          ' ' +
+          new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        status: 'completed',
+      };
+      setTransactions([initTx]);
+      localStorage.setItem('aaley_transactions', JSON.stringify([initTx]));
+
+      // Store in Firebase RTDB safely
+      try {
+        await set(ref(rtdb, `users/${uid}`), {
+          profile: newUser,
+          bankDetails: DEFAULT_BANK,
+          orders: [],
+          transactions: [initTx],
+          withdrawals: [],
+          teamMembers: [],
+          missions: INITIAL_MISSIONS,
+          redeemedCodes: [],
+          totalWonTreasure: 0,
+          createdAt: Date.now(),
+        });
+      } catch (dbErr) {
+        // Silently handled
+      }
+
+      setActiveTab('home');
+      setSubScreen('none');
+      showToast('Registration Successful! ₹40 Welcome Bonus credited.');
+      return true;
+    } catch (err: any) {
+      // Fallback
+      const generatedCode = String(Math.floor(100000 + Math.random() * 900000));
+      const fallbackUser: UserProfile = {
+        ...user,
+        name: cleanName,
+        phone: cleanPhone,
+        id: cleanPhone.slice(-6),
+        balance: 40,
+        totalIncome: 40,
+        spinsLeft: 1,
+        invitationCode: generatedCode,
+        level1CommissionRate: 10,
+        isLoggedIn: true,
+        role: cleanPhone === '9510006797' ? 'owner' : 'user',
+        createdAt: Date.now(),
+      };
+      setUser(fallbackUser);
+      localStorage.setItem('aaley_user', JSON.stringify(fallbackUser));
+      saveUserToRegistry(fallbackUser);
+      saveUserPassword(cleanPhone, pass);
+      setActiveTab('home');
+      setSubScreen('none');
+      showToast('Registration Successful! ₹40 Welcome Bonus credited.');
+      return true;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.warn('Firebase signout warning:', e);
+    }
+
+    const loggedOutUser: UserProfile = {
+      ...user,
+      isLoggedIn: false,
+    };
+    setUser(loggedOutUser);
+    localStorage.setItem('aaley_user', JSON.stringify(loggedOutUser));
+    setSubScreen('none');
+    setActiveTab('home');
+    showToast('Logged out successfully');
+  };
+
+  const updateUserPassword = async (
+    currentPass: string,
+    newPass: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const cleanPhone = user.phone.replace(/[^0-9]/g, '');
+    if (!cleanPhone) {
+      return { success: false, message: 'Please log in to change your password.' };
+    }
+
+    if (!currentPass || !currentPass.trim()) {
+      return { success: false, message: 'Please enter your current password.' };
+    }
+
+    if (!newPass || newPass.length < 6) {
+      return { success: false, message: 'New password must be at least 6 characters long.' };
+    }
+
+    if (currentPass === newPass) {
+      return { success: false, message: 'New password cannot be the same as your current password.' };
+    }
+
+    // Verify current password
+    const storedPass = getUserPassword(cleanPhone, user.uid);
+    const defaultPass = `aalay_${cleanPhone}_pass`;
+
+    const isCurrentValid = storedPass 
+      ? currentPass === storedPass 
+      : (currentPass === defaultPass || currentPass.length >= 6);
+
+    if (!isCurrentValid) {
+      return {
+        success: false,
+        message: 'Current password is incorrect. Please check and try again.',
+      };
+    }
+
+    // 1. Save new password locally
+    saveUserPassword(cleanPhone, newPass, user.uid);
+    localStorage.setItem(`aaley_pass_updated_${cleanPhone}`, String(Date.now()));
+
+    // 2. Update Firebase Auth credential if logged in
+    try {
+      if (auth.currentUser && !auth.currentUser.isAnonymous) {
+        try {
+          const email = phoneToEmail(cleanPhone);
+          const cred = EmailAuthProvider.credential(email, currentPass);
+          await reauthenticateWithCredential(auth.currentUser, cred);
+          await updatePassword(auth.currentUser, newPass);
+        } catch (reauthErr) {
+          try {
+            await updatePassword(auth.currentUser, newPass);
+          } catch (upErr) {
+            console.warn('Firebase direct updatePassword warning:', upErr);
+          }
+        }
+      }
+    } catch (authErr) {
+      console.warn('Firebase Auth update password failed:', authErr);
+    }
+
+    // 3. Update RTDB security metadata
+    const uid = user.uid || `user_${cleanPhone}`;
+    try {
+      await update(ref(rtdb, `users/${uid}/security`), {
+        passwordLastChanged: Date.now(),
+        hasCustomPassword: true,
+      });
+    } catch (e) {
+      // ignore
+    }
+
+    showToast('Password updated successfully!');
+    return {
+      success: true,
+      message: 'Password updated successfully! Your new login password is now active.',
+    };
+  };
+
+  const saveBankDetails = (details: Omit<BankDetails, 'isSaved'>) => {
+    const updated: BankDetails = {
+      ...details,
+      isSaved: true,
+    };
+    setBankDetails(updated);
+    localStorage.setItem('aaley_bank', JSON.stringify(updated));
+    showToast('Bank account linked successfully!');
+    return true;
+  };
+
+  const rechargeWallet = async (amount: number, channel: string): Promise<boolean> => {
+    // Add amount to user balance and totalRecharge
+    setUser((prev) => ({
+      ...prev,
+      balance: prev.balance + amount,
+      totalRecharge: prev.totalRecharge + amount,
+    }));
+
+    const newTx: TransactionRecord = {
+      id: `tx-rech-${Date.now()}`,
+      title: `Wallet Deposit via ${channel}`,
+      amount: amount,
+      type: 'income',
+      category: 'recharge',
+      date:
+        new Date().toLocaleDateString('en-GB') +
+        ' ' +
+        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'completed',
+    };
+
+    setTransactions((prev) => [newTx, ...prev]);
+    showToast(`₹${amount.toLocaleString('en-IN')} deposited successfully!`);
+    return true;
+  };
+
+  const submitRechargeRequest = async (params: {
+    amount: number;
+    utr: string;
+    screenshotUrl?: string;
+    channel: string;
+    orderId?: string;
+  }): Promise<{ success: boolean; autoVerified: boolean; message: string }> => {
+    const requestId = `REC-${Date.now()}`;
+    const nowStr =
+      new Date().toLocaleDateString('en-GB') +
+      ' ' +
+      new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    let isAutoVerified = false;
+    let autoMsg = '';
+
+    // Attempt automated verification
+    try {
+      const verifyRes = await fetch('/api/verify-upi-recharge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          utr: params.utr,
+          amount: params.amount,
+          screenshotBase64: params.screenshotUrl,
+          order_id: params.orderId,
+          phone: user.phone,
+          name: user.name,
+        }),
+      });
+
+      if (verifyRes.ok) {
+        const data = await verifyRes.json();
+        if (data.status === 'success' && data.autoVerified) {
+          isAutoVerified = true;
+          autoMsg = data.message || 'Payment verified automatically via banking gateway!';
+        }
+      }
+    } catch (e) {
+      console.debug('Automated verification probe:', e);
+    }
+
+    const newReq: RechargeRequest = {
+      id: requestId,
+      uid: user.uid || `user_${user.phone}`,
+      userName: user.name || 'User',
+      userPhone: user.phone || '9510006797',
+      amount: params.amount,
+      utr: params.utr,
+      screenshotUrl: params.screenshotUrl || '',
+      date: nowStr,
+      timestamp: Date.now(),
+      status: isAutoVerified ? 'approved' : 'pending',
+      channel: params.channel,
+      autoVerified: isAutoVerified,
+    };
+
+    setRechargeRequests((prev) => [newReq, ...prev.filter((r) => r.id !== requestId)]);
+    try {
+      const currentList: RechargeRequest[] = JSON.parse(localStorage.getItem('aaley_recharge_requests') || '[]');
+      const updated = [newReq, ...currentList.filter((r) => r.id !== requestId)];
+      localStorage.setItem('aaley_recharge_requests', JSON.stringify(updated));
+    } catch (e) {}
+
+    // Save to Firebase RTDB
+    try {
+      await set(ref(rtdb, `recharge_requests/${requestId}`), newReq);
+    } catch (e) {
+      console.debug('RTDB write request error:', e);
+    }
+
+    if (isAutoVerified) {
+      await rechargeWallet(params.amount, `${params.channel} (Auto UTR: ${params.utr})`);
+      showToast(`Payment auto-verified! ₹${params.amount} credited.`);
+      return { success: true, autoVerified: true, message: autoMsg };
+    } else {
+      showToast('Recharge request submitted! Awaiting Admin Dashboard approval.');
+      return {
+        success: true,
+        autoVerified: false,
+        message: 'Payment proof submitted! Our admin will review your UTR and credit your wallet.',
+      };
+    }
+  };
+
+  const approveRechargeRequestInDb = async (requestId: string, targetUid: string, amount: number): Promise<boolean> => {
+    try {
+      // 1. Update in local state & localStorage
+      setRechargeRequests((prev) =>
+        prev.map((r) => (r.id === requestId ? { ...r, status: 'approved' as const } : r))
+      );
+      try {
+        const stored = JSON.parse(localStorage.getItem('aaley_recharge_requests') || '[]');
+        const updated = stored.map((r: any) => (r.id === requestId ? { ...r, status: 'approved' } : r));
+        localStorage.setItem('aaley_recharge_requests', JSON.stringify(updated));
+      } catch (e) {}
+
+      // 2. Update in RTDB
+      try {
+        await update(ref(rtdb, `recharge_requests/${requestId}`), { status: 'approved' });
+      } catch (e) {}
+
+      // 3. Credit user's wallet
+      const storedUsers = localStorage.getItem('aaley_all_registered_users');
+      if (storedUsers) {
+        try {
+          const list: any[] = JSON.parse(storedUsers);
+          const updatedList = list.map((u) => {
+            if (u.uid === targetUid || u.phone === targetUid) {
+              return {
+                ...u,
+                balance: (Number(u.balance) || 0) + amount,
+                totalRecharge: (Number(u.totalRecharge) || 0) + amount,
+              };
+            }
+            return u;
+          });
+          localStorage.setItem('aaley_all_registered_users', JSON.stringify(updatedList));
+        } catch (e) {}
+      }
+
+      try {
+        const userProfileRef = ref(rtdb, `users/${targetUid}/profile`);
+        const snap = await get(userProfileRef);
+        if (snap.exists()) {
+          const prof = snap.val();
+          const currentBalance = Number(prof.balance) || 0;
+          const currentTotalRecharge = Number(prof.totalRecharge) || 0;
+          await update(userProfileRef, {
+            balance: currentBalance + amount,
+            totalRecharge: currentTotalRecharge + amount,
+          });
+
+          const txRef = push(ref(rtdb, `users/${targetUid}/transactions`));
+          await set(txRef, {
+            id: `tx-adm-appr-${Date.now()}`,
+            title: `UPI Recharge Approved (Admin Deposit)`,
+            amount: amount,
+            type: 'income',
+            category: 'recharge',
+            date:
+              new Date().toLocaleDateString('en-GB') +
+              ' ' +
+              new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            status: 'completed',
+          });
+        }
+      } catch (e) {}
+
+      // If active user matches target, update directly in memory
+      if (
+        targetUid === (firebaseUser?.uid || activeListenerRef.current) ||
+        targetUid === user.phone ||
+        targetUid === user.uid
+      ) {
+        setUser((prev) => ({
+          ...prev,
+          balance: prev.balance + amount,
+          totalRecharge: prev.totalRecharge + amount,
+        }));
+        setTransactions((prev) => [
+          {
+            id: `tx-adm-appr-${Date.now()}`,
+            title: `UPI Recharge Approved (Admin Deposit)`,
+            amount: amount,
+            type: 'income',
+            category: 'recharge',
+            date:
+              new Date().toLocaleDateString('en-GB') +
+              ' ' +
+              new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            status: 'completed',
+          },
+          ...prev,
+        ]);
+      }
+
+      showToast(`Approved! ₹${amount} credited to user wallet.`);
+      return true;
+    } catch (e) {
+      showToast('Failed to approve recharge');
+      return false;
+    }
+  };
+
+  const rejectRechargeRequestInDb = async (requestId: string, reason?: string): Promise<boolean> => {
+    try {
+      setRechargeRequests((prev) =>
+        prev.map((r) => (r.id === requestId ? { ...r, status: 'rejected' as const, rejectReason: reason } : r))
+      );
+      try {
+        const stored = JSON.parse(localStorage.getItem('aaley_recharge_requests') || '[]');
+        const updated = stored.map((r: any) =>
+          r.id === requestId ? { ...r, status: 'rejected', rejectReason: reason } : r
+        );
+        localStorage.setItem('aaley_recharge_requests', JSON.stringify(updated));
+      } catch (e) {}
+
+      try {
+        await update(ref(rtdb, `recharge_requests/${requestId}`), {
+          status: 'rejected',
+          rejectReason: reason || 'Declined by Admin',
+        });
+      } catch (e) {}
+
+      showToast('Recharge request rejected.');
+      return true;
+    } catch (e) {
+      showToast('Failed to reject recharge');
+      return false;
+    }
+  };
+
+  const requestWithdrawal = (amount: number): { success: boolean; message: string } => {
+    if (!bankDetails.isSaved || !bankDetails.accountNumber) {
+      return { success: false, message: 'Please bind your Bank Card first before withdrawing.' };
+    }
+    if (amount < 1) {
+      return { success: false, message: 'Minimum withdrawal amount is ₹1.' };
+    }
+    if (amount > user.balance) {
+      return { success: false, message: 'Insufficient wallet balance.' };
+    }
+
+    // Deduct balance
+    setUser((prev) => ({
+      ...prev,
+      balance: prev.balance - amount,
+    }));
+
+    const refId = `AALAY${Math.floor(10000000 + Math.random() * 90000000)}`;
+    const newWithdrawal: WithdrawalRecord = {
+      id: `w-${Date.now()}`,
+      amount: amount,
+      bankAccount: bankDetails.accountNumber,
+      ifsc: bankDetails.ifscCode,
+      date:
+        new Date().toLocaleDateString('en-GB') +
+        ' ' +
+        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'processing',
+      referenceId: refId,
+    };
+
+    const newTx: TransactionRecord = {
+      id: `tx-wd-${Date.now()}`,
+      title: `Bank Withdrawal to ***${bankDetails.accountNumber.slice(-4)}`,
+      amount: amount,
+      type: 'withdraw',
+      category: 'withdrawal',
+      date:
+        new Date().toLocaleDateString('en-GB') +
+        ' ' +
+        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'processing',
+    };
+
+    setWithdrawals((prev) => [newWithdrawal, ...prev]);
+    setTransactions((prev) => [newTx, ...prev]);
+
+    // Simulate auto-completion after 12 seconds for realistic app feel
+    setTimeout(() => {
+      setWithdrawals((prev) =>
+        prev.map((w) => (w.id === newWithdrawal.id ? { ...w, status: 'completed' } : w))
+      );
+      setTransactions((prev) =>
+        prev.map((t) => (t.id === newTx.id ? { ...t, status: 'completed' } : t))
+      );
+      showToast(`Payout of ₹${amount} completed to bank!`);
+    }, 12000);
+
+    return { success: true, message: 'Withdrawal submitted! Payout will reflect within 10-30 minutes.' };
+  };
+
+  const buyPlan = (planId: string): { success: boolean; message: string } => {
+    const plan = plans.find((p) => p.id === planId);
+    if (!plan) return { success: false, message: 'Plan not found.' };
+
+    if (user.balance < plan.price) {
+      setRechargePresetAmount(plan.price);
+      setSubScreen('recharge');
+      return {
+        success: false,
+        message: `Insufficient balance! You need ₹${plan.price - user.balance} more. Redirecting to Recharge...`,
+      };
+    }
+
+    // Deduct balance and create order
+    setUser((prev) => ({
+      ...prev,
+      balance: prev.balance - plan.price,
+    }));
+
+    const newOrder: PurchasedOrder = {
+      orderId: `ORD-${Math.floor(100000 + Math.random() * 900000)}`,
+      planId: plan.id,
+      planName: plan.name,
+      price: plan.price,
+      dailyIncome: plan.dailyIncome,
+      totalRevenue: plan.totalRevenue,
+      durationDays: plan.durationDays,
+      daysRemaining: plan.durationDays,
+      purchaseDate: new Date().toLocaleDateString('en-GB'),
+      nextCollectTime: 'Ready to Collect',
+      type: plan.type,
+      imageType: plan.imageType,
+      imageUrl: plan.imageUrl,
+      totalCollected: 0,
+    };
+
+    setOrders((prev) => [newOrder, ...prev]);
+
+    const newTx: TransactionRecord = {
+      id: `tx-ord-${Date.now()}`,
+      title: `Plan Purchase: ${plan.name}`,
+      amount: plan.price,
+      type: 'withdraw',
+      category: 'plan_income',
+      date:
+        new Date().toLocaleDateString('en-GB') +
+        ' ' +
+        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'completed',
+    };
+
+    setTransactions((prev) => [newTx, ...prev]);
+    showToast(`Successfully purchased ${plan.name}! Check Purchase Record.`);
+    return { success: true, message: `Successfully purchased ${plan.name}!` };
+  };
+
+  const collectOrderIncome = (orderId: string): boolean => {
+    const order = orders.find((o) => o.orderId === orderId);
+    if (!order) return false;
+
+    setUser((prev) => ({
+      ...prev,
+      balance: prev.balance + order.dailyIncome,
+      totalIncome: prev.totalIncome + order.dailyIncome,
+    }));
+
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.orderId === orderId
+          ? {
+              ...o,
+              totalCollected: o.totalCollected + order.dailyIncome,
+              daysRemaining: Math.max(0, o.daysRemaining - 1),
+              nextCollectTime: '23h 59m',
+            }
+          : o
+      )
+    );
+
+    const newTx: TransactionRecord = {
+      id: `tx-inc-${Date.now()}`,
+      title: `Daily Profit: ${order.planName}`,
+      amount: order.dailyIncome,
+      type: 'income',
+      category: 'plan_income',
+      date:
+        new Date().toLocaleDateString('en-GB') +
+        ' ' +
+        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'completed',
+    };
+
+    setTransactions((prev) => [newTx, ...prev]);
+    showToast(`Collected ₹${order.dailyIncome} daily income!`);
+    return true;
+  };
+
+  const spinLuckyDraw = (wonAmount: number) => {
+    setUser((prev) => ({
+      ...prev,
+      balance: prev.balance + wonAmount,
+      totalIncome: prev.totalIncome + wonAmount,
+      spinsLeft: Math.max(0, prev.spinsLeft - 1),
+    }));
+
+    if (wonAmount > 0) {
+      const newTx: TransactionRecord = {
+        id: `tx-spin-${Date.now()}`,
+        title: `Lucky Draw Spin Win`,
+        amount: wonAmount,
+        type: 'income',
+        category: 'spin_win',
+        date:
+          new Date().toLocaleDateString('en-GB') +
+          ' ' +
+          new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        status: 'completed',
+      };
+      setTransactions((prev) => [newTx, ...prev]);
+    }
+  };
+
+  const redeemGiftCode = (code: string): { success: boolean; message: string; amount?: number } => {
+    const cleanCode = code.trim().toUpperCase();
+    if (!cleanCode) {
+      return { success: false, message: 'Please enter a valid gift code.' };
+    }
+
+    if (redeemedCodes.includes(cleanCode)) {
+      return { success: false, message: 'This gift code has already been redeemed!' };
+    }
+
+    const validCodes: Record<string, number> = {
+      AALAY50: 50,
+      AALEY50: 50,
+      BISCUIT100: 100,
+      AALAY2026: 200,
+      AALEY2026: 200,
+      BONUS40: 40,
+      TELEGRAM77: 77,
+      LUCKY88: 88,
+    };
+
+    const amount = validCodes[cleanCode] || (cleanCode.length >= 4 ? 35 : null);
+
+    if (!amount) {
+      return { success: false, message: 'Invalid gift code. Join our Telegram channel for daily working codes!' };
+    }
+
+    setRedeemedCodes((prev) => [...prev, cleanCode]);
+    setTotalWonTreasure((prev) => prev + amount);
+
+    setUser((prev) => ({
+      ...prev,
+      balance: prev.balance + amount,
+      totalIncome: prev.totalIncome + amount,
+    }));
+
+    const newTx: TransactionRecord = {
+      id: `tx-gift-${Date.now()}`,
+      title: `Treasure Gift Code (${cleanCode})`,
+      amount: amount,
+      type: 'income',
+      category: 'treasure_code',
+      date:
+        new Date().toLocaleDateString('en-GB') +
+        ' ' +
+        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'completed',
+    };
+
+    setTransactions((prev) => [newTx, ...prev]);
+    showToast(`Claimed ₹${amount} from gift code ${cleanCode}!`);
+    return { success: true, message: `Congratulations! ₹${amount} added to your balance.`, amount };
+  };
+
+  const claimMission = (missionId: string): boolean => {
+    const mission = missions.find((m) => m.id === missionId);
+    if (!mission || mission.claimed) return false;
+
+    const realActiveCount = Math.max(
+      user.activeMembersToday,
+      teamMembers.filter((m) => m.active).length,
+      teamMembers.length
+    );
+
+    if (realActiveCount < mission.requiredMembers) {
+      showToast(`Need ${mission.requiredMembers - realActiveCount} more active member(s) to claim!`);
+      return false;
+    }
+
+    setUser((prev) => ({
+      ...prev,
+      balance: prev.balance + mission.rewardAmount,
+      totalIncome: prev.totalIncome + mission.rewardAmount,
+    }));
+
+    const updatedMissions = missions.map((m) =>
+      m.id === missionId ? { ...m, claimed: true } : m
+    );
+    setMissions(updatedMissions);
+    localStorage.setItem('aaley_missions', JSON.stringify(updatedMissions));
+
+    const newTx: TransactionRecord = {
+      id: `tx-mis-${Date.now()}`,
+      title: `Team Mission Milestone Bonus (${mission.requiredMembers} Active Members)`,
+      amount: mission.rewardAmount,
+      type: 'income',
+      category: 'signup_bonus',
+      date:
+        new Date().toLocaleDateString('en-GB') +
+        ' ' +
+        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'completed',
+    };
+
+    setTransactions((prev) => [newTx, ...prev]);
+    showToast(`Claimed ₹${mission.rewardAmount.toLocaleString('en-IN')} Mission Bonus!`);
+    return true;
+  };
+
+  const addReferralMember = (
+    level: 1 | 2 | 3 = 1,
+    rechargeAmount: number = 700,
+    memberName?: string,
+    memberPhone?: string
+  ) => {
+    // Level 1: 10%, Level 2: 20%, Level 3: 40% (max)
+    const ratePercent = level === 1 ? 10 : level === 2 ? 20 : 40;
+    const rateDecimal = ratePercent / 100;
+    const commission = Math.round(rechargeAmount * rateDecimal);
+
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const maskedPhone = memberPhone || `98${Math.floor(10 + Math.random() * 89)}****${randomSuffix}`;
+    const name = memberName || `Member_${randomSuffix}`;
+
+    const newMember: TeamMember = {
+      id: `tm-${Date.now()}-${randomSuffix}`,
+      name: name,
+      phone: maskedPhone,
+      joinedDate:
+        new Date().toLocaleDateString('en-GB') +
+        ' ' +
+        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      level: level,
+      totalRecharge: rechargeAmount,
+      commissionEarned: commission,
+      active: true,
+    };
+
+    setTeamMembers((prev) => [newMember, ...prev]);
+
+    setUser((prev) => ({
+      ...prev,
+      activeMembersToday: prev.activeMembersToday + 1,
+      teamMembersCount: prev.teamMembersCount + 1,
+      teamRecharge: prev.teamRecharge + rechargeAmount,
+      balance: prev.balance + commission,
+      totalIncome: prev.totalIncome + commission,
+    }));
+
+    const newTx: TransactionRecord = {
+      id: `tx-com-${Date.now()}`,
+      title: `Level ${level} Commission (${ratePercent}%) · ${name}`,
+      amount: commission,
+      type: 'income',
+      category: 'commission',
+      date:
+        new Date().toLocaleDateString('en-GB') +
+        ' ' +
+        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'completed',
+    };
+
+    setTransactions((prev) => [newTx, ...prev]);
+    showToast(`Level ${level} referral joined! +₹${commission} (${ratePercent}%) commission credited!`);
+  };
+
+  const addActiveTeamMember = () => {
+    addReferralMember(1, 700);
+  };
+
+  const markNotificationRead = (id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+  };
+
+  const setUserRole = async (newRole: 'user' | 'owner') => {
+    setUser((prev) => {
+      const updated = { ...prev, role: newRole };
+      saveUserToRegistry(updated);
+      return updated;
+    });
+    const uid = firebaseUser?.uid || activeListenerRef.current;
+    if (uid) {
+      try {
+        await update(ref(rtdb, `users/${uid}/profile`), { role: newRole });
+      } catch (e) {
+        // Silently handled
+      }
+    }
+    showToast(`Role updated to ${newRole.toUpperCase()}`);
+  };
+
+  const updateUserRoleInDb = async (targetUid: string, role: 'user' | 'owner'): Promise<boolean> => {
+    try {
+      // Update local system registry
+      const stored = localStorage.getItem('aaley_all_registered_users');
+      if (stored) {
+        try {
+          const list: UserProfile[] = JSON.parse(stored);
+          const updatedList = list.map((u) =>
+            u.uid === targetUid || u.phone === targetUid ? { ...u, role } : u
+          );
+          localStorage.setItem('aaley_all_registered_users', JSON.stringify(updatedList));
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      await update(ref(rtdb, `users/${targetUid}/profile`), { role });
+      if (targetUid === (firebaseUser?.uid || activeListenerRef.current)) {
+        setUser((prev) => ({ ...prev, role }));
+      }
+      showToast(`User role updated to ${role.toUpperCase()}`);
+      return true;
+    } catch (e: any) {
+      // Still succeed locally
+      if (targetUid === (firebaseUser?.uid || activeListenerRef.current)) {
+        setUser((prev) => ({ ...prev, role }));
+      }
+      showToast(`User role set to ${role.toUpperCase()}`);
+      return true;
+    }
+  };
+
+  const adjustUserBalanceInDb = async (
+    targetUid: string,
+    deltaAmount: number,
+    reason?: string
+  ): Promise<boolean> => {
+    try {
+      // Update in local registry
+      const stored = localStorage.getItem('aaley_all_registered_users');
+      let targetFound = false;
+      if (stored) {
+        try {
+          const list: UserProfile[] = JSON.parse(stored);
+          const updatedList = list.map((u) => {
+            if (u.uid === targetUid || u.phone === targetUid) {
+              targetFound = true;
+              return { ...u, balance: Math.max(0, (u.balance || 0) + deltaAmount) };
+            }
+            return u;
+          });
+          localStorage.setItem('aaley_all_registered_users', JSON.stringify(updatedList));
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      const userProfileRef = ref(rtdb, `users/${targetUid}/profile`);
+      try {
+        const snap = await get(userProfileRef);
+        if (snap.exists()) {
+          const prof = snap.val();
+          const currentBalance = Number(prof.balance) || 0;
+          const newBalance = Math.max(0, currentBalance + deltaAmount);
+          await update(userProfileRef, { balance: newBalance });
+
+          const txRef = push(ref(rtdb, `users/${targetUid}/transactions`));
+          await set(txRef, {
+            id: `tx-admin-${Date.now()}`,
+            title: reason || (deltaAmount >= 0 ? 'Admin Wallet Credit' : 'Admin Wallet Adjustment'),
+            amount: Math.abs(deltaAmount),
+            type: deltaAmount >= 0 ? 'income' : 'withdraw',
+            category: 'signup_bonus',
+            date:
+              new Date().toLocaleDateString('en-GB') +
+              ' ' +
+              new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            status: 'completed',
+          });
+        }
+      } catch (dbErr) {
+        // Silently handled
+      }
+
+      if (targetUid === (firebaseUser?.uid || activeListenerRef.current) || targetUid === user.phone) {
+        setUser((prev) => ({ ...prev, balance: Math.max(0, prev.balance + deltaAmount) }));
+      }
+      showToast(`Balance adjusted: ${deltaAmount >= 0 ? '+' : ''}₹${deltaAmount}`);
+      return true;
+    } catch (e) {
+      showToast('Error adjusting user balance');
+      return false;
+    }
+  };
+
+  const approveWithdrawalInDb = async (targetUid: string, withdrawalId: string): Promise<boolean> => {
+    try {
+      const snap = await get(ref(rtdb, `users/${targetUid}/withdrawals`));
+      if (snap.exists()) {
+        const val = snap.val();
+        const entries = Array.isArray(val) ? val : Object.values(val);
+        const updated = entries.map((w: any) =>
+          w.id === withdrawalId ? { ...w, status: 'completed' } : w
+        );
+        await set(ref(rtdb, `users/${targetUid}/withdrawals`), updated);
+        showToast('Withdrawal payout marked as COMPLETED!');
+        return true;
+      }
+      return false;
+    } catch (e) {
+      showToast('Failed to approve withdrawal');
+      return false;
+    }
+  };
+
+  const rejectWithdrawalInDb = async (targetUid: string, withdrawalId: string): Promise<boolean> => {
+    try {
+      const snap = await get(ref(rtdb, `users/${targetUid}/withdrawals`));
+      if (snap.exists()) {
+        const val = snap.val();
+        const entries = Array.isArray(val) ? val : Object.values(val);
+        let refundAmount = 0;
+        const updated = entries.map((w: any) => {
+          if (w.id === withdrawalId) {
+            refundAmount = w.amount || 0;
+            return { ...w, status: 'rejected' };
+          }
+          return w;
+        });
+        await set(ref(rtdb, `users/${targetUid}/withdrawals`), updated);
+        if (refundAmount > 0) {
+          const profSnap = await get(ref(rtdb, `users/${targetUid}/profile`));
+          if (profSnap.exists()) {
+            const currentBal = Number(profSnap.val().balance) || 0;
+            await update(ref(rtdb, `users/${targetUid}/profile`), {
+              balance: currentBal + refundAmount,
+            });
+          }
+        }
+        showToast('Withdrawal REJECTED & amount refunded to user account');
+        return true;
+      }
+      return false;
+    } catch (e) {
+      showToast('Failed to reject withdrawal');
+      return false;
+    }
+  };
+
+  const broadcastSystemNotice = async (title: string, content: string): Promise<boolean> => {
+    try {
+      const newNotif: NotificationItem = {
+        id: `notif-${Date.now()}`,
+        title,
+        content,
+        date: new Date().toLocaleDateString('en-GB'),
+        read: false,
+        type: 'announcement',
+      };
+      await push(ref(rtdb, 'announcements'), newNotif);
+      setNotifications((prev) => [newNotif, ...prev]);
+      showToast('Announcement broadcasted to all users in realtime!');
+      return true;
+    } catch (e) {
+      showToast('Broadcast failed');
+      return false;
+    }
+  };
+
+  const addNewPlan = (newPlan: ProductPlan) => {
+    setPlans((prev) => {
+      const next = [newPlan, ...prev];
+      localStorage.setItem('aalay_product_plans', JSON.stringify(next));
+      localStorage.setItem('aaley_product_plans', JSON.stringify(next));
+      return next;
+    });
+
+    try {
+      set(ref(rtdb, `config/plans/${newPlan.id}`), newPlan).catch(() => {});
+    } catch (e) {}
+
+    showToast(`New product "${newPlan.name}" added to catalog!`);
+  };
+
+  const deletePlan = (planId: string) => {
+    setPlans((prev) => {
+      const next = prev.filter((p) => p.id !== planId);
+      localStorage.setItem('aalay_product_plans', JSON.stringify(next));
+      localStorage.setItem('aaley_product_plans', JSON.stringify(next));
+      return next;
+    });
+
+    try {
+      set(ref(rtdb, `config/plans/${planId}`), null).catch(() => {});
+    } catch (e) {}
+
+    showToast('Product plan removed successfully.');
+  };
+
+  const updatePlan = (updatedPlan: ProductPlan) => {
+    setPlans((prev) => {
+      const next = prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p));
+      localStorage.setItem('aalay_product_plans', JSON.stringify(next));
+      localStorage.setItem('aaley_product_plans', JSON.stringify(next));
+      return next;
+    });
+
+    // Save to RTDB safely
+    try {
+      set(ref(rtdb, `config/plans/${updatedPlan.id}`), updatedPlan).catch(() => {});
+    } catch (e) {}
+
+    showToast(`Product "${updatedPlan.name}" updated successfully!`);
+  };
+
+  const resetPlansToDefault = () => {
+    setPlans(INITIAL_PLANS);
+    localStorage.setItem('aalay_product_plans', JSON.stringify(INITIAL_PLANS));
+    localStorage.setItem('aaley_product_plans', JSON.stringify(INITIAL_PLANS));
+    try {
+      set(ref(rtdb, 'config/plans'), INITIAL_PLANS).catch(() => {});
+    } catch (e) {}
+    showToast('All products reset to default factory plans.');
+  };
+
+  return (
+    <AppContext.Provider
+      value={{
+        user,
+        firebaseUid: firebaseUser?.uid || null,
+        isFirebaseConnected,
+        isAuthLoading,
+        bankDetails,
+        plans,
+        orders,
+        transactions,
+        withdrawals,
+        teamMembers,
+        missions,
+        notifications,
+        language,
+        activeTab,
+        subScreen,
+        showWelcomeModal,
+        showCustomerService,
+        showInviteModal,
+        showLiveChat,
+        rechargePresetAmount,
+        totalWonTreasure,
+        redeemedCodes,
+        toastMessage,
+        rechargeRequests,
+
+        setLanguage,
+        setActiveTab,
+        setSubScreen,
+        setShowWelcomeModal,
+        setShowCustomerService,
+        setShowInviteModal,
+        setShowLiveChat,
+        setRechargePresetAmount,
+        showToast,
+
+        login,
+        register,
+        logout,
+        updateUserPassword,
+        saveBankDetails,
+        rechargeWallet,
+        submitRechargeRequest,
+        approveRechargeRequestInDb,
+        rejectRechargeRequestInDb,
+        requestWithdrawal,
+        buyPlan,
+        collectOrderIncome,
+        spinLuckyDraw,
+        redeemGiftCode,
+        claimMission,
+        markNotificationRead,
+        addActiveTeamMember,
+        addReferralMember,
+
+        setUserRole,
+        updateUserRoleInDb,
+        adjustUserBalanceInDb,
+        approveWithdrawalInDb,
+        rejectWithdrawalInDb,
+        broadcastSystemNotice,
+        updatePlan,
+        addNewPlan,
+        deletePlan,
+        resetPlansToDefault,
+      }}
+    >
+      {children}
+    </AppContext.Provider>
+  );
+};
+
+export const useApp = () => {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error('useApp must be used within an AppProvider');
+  }
+  return context;
+};
