@@ -19,98 +19,287 @@ async function startServer() {
     next();
   });
 
-  // Secure checkout order creation endpoint for Fampay Gateway (official specifications)
-  app.post('/api/create-fampay-order', async (req, res) => {
+  // ==========================================
+  // Rupayex Payment Gateway & Payout Integration
+  // Base URL: https://rupayex.net/api
+  // ==========================================
+  let rupayexApiToken = process.env.RUPAYEX_API_TOKEN || 'c0bfc67f130d640a0f7f9737de2f9af6';
+  const RUPAYEX_BASE_URL = 'https://rupayex.net/api';
+
+  const getRupayexToken = () => rupayexApiToken.trim();
+
+  // 1. Create Payment Order (POST /api/rupayex/create-order)
+  app.post('/api/rupayex/create-order', async (req, res) => {
     try {
-      const { amount } = req.body;
-      if (!amount || isNaN(amount) || amount <= 0) {
-        return res.status(400).json({ error: 'Valid amount is required' });
+      const { amount, order_id, customer_mobile, remark1, redirect_url } = req.body;
+      const parsedAmount = Number(amount);
+      if (!parsedAmount || isNaN(parsedAmount) || parsedAmount < 1) {
+        return res.status(400).json({ status: false, error: 'Valid amount (minimum ₹1, maximum ₹100,000) is required.' });
       }
 
-      // Read API Key from environment, or use the key provided in your documentation example
-      const apiKey = process.env.FAMPAY_API_KEY || 'FAM_9B1980E40E5B9DCBA189D08F47A59826D5F306D6';
+      const token = getRupayexToken();
+      const uniqueOrderId = order_id || `ORD_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
       
-      console.log(`Creating Fampay order for amount: ${amount}`);
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const host = req.headers.host || 'localhost:3000';
+      const defaultCallbackUrl = `${protocol}://${host}/api/rupayex/callback`;
+      const finalRedirectUrl = redirect_url || defaultCallbackUrl;
 
+      console.log(`[Rupayex] Creating order ${uniqueOrderId} for ₹${parsedAmount}`);
+
+      const params = new URLSearchParams();
+      params.append('user_token', token);
+      params.append('amount', String(parsedAmount));
+      params.append('order_id', uniqueOrderId);
+      params.append('redirect_url', finalRedirectUrl);
+      if (customer_mobile) params.append('customer_mobile', String(customer_mobile));
+      if (remark1) params.append('remark1', String(remark1));
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const rpxRes = await fetch(`${RUPAYEX_BASE_URL}/create-order`, {
+        method: 'POST',
+        headers: {
+          'X-Api-Token': token,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params.toString(),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const resText = await rpxRes.text();
+      let data: any;
       try {
-        const createOrderUrl = `https://www.fampaygateway.site/api/create_order.php?amount=${amount}&api_key=${apiKey}`;
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000);
-        const fampayRes = await fetch(createOrderUrl, { method: 'GET', signal: controller.signal });
-        clearTimeout(timeoutId);
-
-        if (!fampayRes.ok) {
-          const errorText = await fampayRes.text();
-          return res.status(fampayRes.status).json({ error: errorText });
-        }
-
-        const data = await fampayRes.json();
-        
-        if (data && data.status === 'success' && data.data && data.data.order_id) {
-          const orderId = data.data.order_id;
-          
-          // Use the ready-made checkout page as specified in documentation
-          const checkoutUrl = `https://www.fampaygateway.site/checkout.php?order_id=${orderId}`;
-          
-          return res.json({
-            checkout_url: checkoutUrl,
-            order_id: orderId,
-            qr_url: data.data.qr_url || '',
-            upi_link: data.data.upi_link || '',
-            upi_id: data.data.upi_id || '',
-            amount: data.data.amount || amount,
-            expires_at: data.data.expires_at || '',
-          });
-        } else {
-          return res.status(400).json({ 
-            error: data.message || 'Failed to create order on Fampay Gateway', 
-            details: data 
-          });
-        }
-      } catch (err: any) {
-        return res.status(500).json({ error: `Fampay Gateway Connection failed: ${err.message}` });
+        data = JSON.parse(resText);
+      } catch {
+        data = { message: resText };
       }
+
+      if (!rpxRes.ok && (!data || !data.status)) {
+        return res.status(rpxRes.status || 400).json({
+          status: false,
+          error: data?.message || data?.error || 'Failed to create order on Rupayex',
+          details: data,
+        });
+      }
+
+      const checkoutUrl =
+        data.payment_url ||
+        data.checkout_url ||
+        data.url ||
+        data.data?.payment_url ||
+        data.data?.checkout_url ||
+        data.redirect_url ||
+        `https://rupayex.net/checkout?order_id=${uniqueOrderId}&token=${token}`;
+
+      return res.json({
+        status: true,
+        order_id: uniqueOrderId,
+        amount: parsedAmount,
+        payment_url: checkoutUrl,
+        checkout_url: checkoutUrl,
+        qr_url: data.qr_url || data.data?.qr_url || '',
+        upi_link: data.upi_link || data.data?.upi_link || '',
+        data: data,
+      });
     } catch (err: any) {
-      return res.status(500).json({ error: err.message || 'Internal Server Error' });
+      console.error('[Rupayex] create-order error:', err);
+      return res.status(500).json({ status: false, error: `Rupayex Gateway Connection error: ${err.message}` });
     }
   });
 
-  // Secure payment verification endpoint for Fampay Gateway (official specifications)
-  app.post('/api/verify-fampay-order', async (req, res) => {
+  // 2. Query Order Status (GET /api/rupayex/order-status)
+  app.get('/api/rupayex/order-status', async (req, res) => {
     try {
-      const { order_id } = req.body;
-      if (!order_id) {
-        return res.status(400).json({ error: 'order_id is required' });
+      const orderId = (req.query.order_id as string) || (req.query.orderId as string);
+      if (!orderId) {
+        return res.status(400).json({ status: false, error: 'order_id is required' });
       }
 
-      const apiKey = process.env.FAMPAY_API_KEY || 'FAM_9B1980E40E5B9DCBA189D08F47A59826D5F306D6';
-      const verifyUrl = `https://www.fampaygateway.site/api/verify.php?order_id=${order_id}&api_key=${apiKey}`;
-
+      const token = getRupayexToken();
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 12000);
-      const fampayRes = await fetch(verifyUrl, { method: 'GET', signal: controller.signal });
+
+      const queryUrl = `${RUPAYEX_BASE_URL}/order-status?user_token=${encodeURIComponent(token)}&order_id=${encodeURIComponent(orderId)}`;
+      const rpxRes = await fetch(queryUrl, {
+        method: 'GET',
+        headers: {
+          'X-Api-Token': token,
+        },
+        signal: controller.signal,
+      });
       clearTimeout(timeoutId);
-      if (!fampayRes.ok) {
-        return res.status(400).json({ error: 'Failed to connect to Fampay Gateway verification server' });
+
+      const data = await rpxRes.json();
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(500).json({ status: false, error: err.message || 'Error querying Rupayex order status' });
+    }
+  });
+
+  // 3. Callback / Redirect receiver (ALL /api/rupayex/callback)
+  app.all('/api/rupayex/callback', (req, res) => {
+    const order_id = req.query.order_id || req.body?.order_id || '';
+    const utr = req.query.utr || req.body?.utr || '';
+    const status = req.query.status || req.body?.status || req.body?.payment_status || 'SUCCESS';
+
+    return res.redirect(`/?recharge_status=${status}&order_id=${order_id}&utr=${utr}#deposit-history`);
+  });
+
+  // 4. Create Payout (POST /api/rupayex/create-payout)
+  app.post('/api/rupayex/create-payout', async (req, res) => {
+    try {
+      const {
+        amount,
+        method,
+        account_holder,
+        account_number,
+        ifsc_code,
+        bank_name,
+        upi_id,
+        payout_id,
+      } = req.body;
+
+      const parsedAmount = Number(amount);
+      if (!parsedAmount || isNaN(parsedAmount) || parsedAmount < 1) {
+        return res.status(400).json({ status: false, error: 'Valid payout amount (minimum ₹1) is required.' });
       }
 
-      const data = await fampayRes.json();
-      if (data && data.status === 'success') {
-        return res.json({
-          status: 'success',
-          amount: data.data?.amount,
-          utr: data.data?.utr,
-          payment_time: data.data?.payment_time,
-        });
-      } else {
-        return res.json({
-          status: 'pending',
-          message: data.message || 'Payment is not verified yet.',
-        });
+      if (!method || (method !== 'bank' && method !== 'upi')) {
+        return res.status(400).json({ status: false, error: 'Payout method must be "bank" or "upi"' });
       }
+
+      if (!account_holder) {
+        return res.status(400).json({ status: false, error: 'Recipient account_holder name is required' });
+      }
+
+      const token = getRupayexToken();
+      const uniquePayoutId = payout_id || `PO_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+
+      const params = new URLSearchParams();
+      params.append('user_token', token);
+      params.append('amount', String(parsedAmount));
+      params.append('method', method);
+      params.append('account_holder', account_holder);
+      params.append('payout_id', uniquePayoutId);
+
+      if (method === 'bank') {
+        if (!account_number || !ifsc_code) {
+          return res.status(400).json({ status: false, error: 'account_number and ifsc_code are required for bank payout' });
+        }
+        params.append('account_number', String(account_number));
+        params.append('ifsc_code', String(ifsc_code));
+        if (bank_name) params.append('bank_name', String(bank_name));
+      } else {
+        if (!upi_id) {
+          return res.status(400).json({ status: false, error: 'upi_id is required for UPI payout' });
+        }
+        params.append('upi_id', String(upi_id));
+      }
+
+      console.log(`[Rupayex] Creating ${method} payout of ₹${parsedAmount} for ${account_holder}`);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const rpxRes = await fetch(`${RUPAYEX_BASE_URL}/create-payout`, {
+        method: 'POST',
+        headers: {
+          'X-Api-Token': token,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params.toString(),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const resText = await rpxRes.text();
+      let data: any;
+      try {
+        data = JSON.parse(resText);
+      } catch {
+        data = { message: resText };
+      }
+
+      return res.status(rpxRes.ok ? 200 : 400).json(data);
     } catch (err: any) {
-      return res.status(500).json({ error: err.message || 'Internal Server Error' });
+      console.error('[Rupayex] create-payout error:', err);
+      return res.status(500).json({ status: false, error: err.message || 'Payout creation error' });
     }
+  });
+
+  // 5. Query Payout Status (GET /api/rupayex/payout-status)
+  app.get('/api/rupayex/payout-status', async (req, res) => {
+    try {
+      const payoutId = (req.query.payout_id as string) || (req.query.payoutId as string);
+      if (!payoutId) {
+        return res.status(400).json({ status: false, error: 'payout_id is required' });
+      }
+
+      const token = getRupayexToken();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+      const queryUrl = `${RUPAYEX_BASE_URL}/payout-status?user_token=${encodeURIComponent(token)}&payout_id=${encodeURIComponent(payoutId)}`;
+      const rpxRes = await fetch(queryUrl, {
+        method: 'GET',
+        headers: {
+          'X-Api-Token': token,
+        },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const data = await rpxRes.json();
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(500).json({ status: false, error: err.message || 'Error querying payout status' });
+    }
+  });
+
+  // 6. Query Wallet Balance (GET /api/rupayex/wallet-balance)
+  app.get('/api/rupayex/wallet-balance', async (req, res) => {
+    try {
+      const token = getRupayexToken();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+      const queryUrl = `${RUPAYEX_BASE_URL}/wallet-balance?user_token=${encodeURIComponent(token)}`;
+      const rpxRes = await fetch(queryUrl, {
+        method: 'GET',
+        headers: {
+          'X-Api-Token': token,
+        },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const data = await rpxRes.json();
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(500).json({ status: false, error: err.message || 'Error querying Rupayex wallet balance' });
+    }
+  });
+
+  // 7. Get & Update Rupayex Gateway Token (GET / POST /api/rupayex/config)
+  app.get('/api/rupayex/config', (req, res) => {
+    return res.json({
+      status: true,
+      hasToken: !!rupayexApiToken,
+      tokenMasked: rupayexApiToken ? `${rupayexApiToken.slice(0, 6)}...${rupayexApiToken.slice(-4)}` : '',
+      token: rupayexApiToken,
+    });
+  });
+
+  app.post('/api/rupayex/config', (req, res) => {
+    const { token } = req.body;
+    if (token && typeof token === 'string' && token.trim().length >= 6) {
+      rupayexApiToken = token.trim();
+      return res.json({ status: true, message: 'Rupayex API Token updated successfully!' });
+    }
+    return res.status(400).json({ status: false, error: 'Valid API token is required' });
   });
 
   // UPI Recharge Verification Endpoint (Automated Verification + Screenshot & UTR Processing)
@@ -136,31 +325,35 @@ async function startServer() {
 
       const parsedAmount = Number(amount) || 0;
 
-      // 1. First, if linked with a Fampay order ID, check gateway confirmation
+      // 1. First, if linked with a Rupayex order ID, check gateway confirmation
       if (order_id) {
         try {
-          const apiKey = process.env.FAMPAY_API_KEY || 'FAM_9B1980E40E5B9DCBA189D08F47A59826D5F306D6';
-          const verifyUrl = `https://www.fampaygateway.site/api/verify.php?order_id=${order_id}&api_key=${apiKey}`;
+          const token = getRupayexToken();
+          const verifyUrl = `${RUPAYEX_BASE_URL}/order-status?user_token=${encodeURIComponent(token)}&order_id=${encodeURIComponent(order_id)}`;
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 6000);
-          const fampayRes = await fetch(verifyUrl, { method: 'GET', signal: controller.signal });
+          const rpxRes = await fetch(verifyUrl, {
+            method: 'GET',
+            headers: { 'X-Api-Token': token },
+            signal: controller.signal,
+          });
           clearTimeout(timeoutId);
 
-          if (fampayRes.ok) {
-            const data = await fampayRes.json();
-            if (data && data.status === 'success') {
+          if (rpxRes.ok) {
+            const data = await rpxRes.json();
+            if (data && (data.status === true || data.status === 'SUCCESS') && data.payment_status === 'SUCCESS') {
               processedUtrs.add(cleanUtr);
               return res.json({
                 status: 'success',
                 autoVerified: true,
-                message: 'Payment verified instantly via Banking Gateway!',
-                utr: data.data?.utr || cleanUtr,
-                amount: data.data?.amount || parsedAmount,
+                message: 'Payment verified instantly via Rupayex Gateway!',
+                utr: data.utr || cleanUtr,
+                amount: Number(data.amount) || parsedAmount,
               });
             }
           }
         } catch (e) {
-          console.debug('Fampay check bypassed or timed out:', e);
+          console.debug('Rupayex check bypassed or timed out:', e);
         }
       }
 
@@ -247,6 +440,91 @@ Output JSON only in this exact format:
       });
     } catch (err: any) {
       return res.status(500).json({ error: err.message || 'Verification processing error' });
+    }
+  });
+
+  // Server Time Endpoint - Authoritative time source immune to device clock tampering
+  app.get('/api/server-time', (req, res) => {
+    return res.json({
+      serverTime: Date.now(),
+      iso: new Date().toISOString(),
+    });
+  });
+
+  // Server-Authoritative 24-Hour Day Income Verification and Collection
+  // Strictly enforces real server timestamps so users changing device date cannot exploit credits
+  app.post('/api/orders/collect-daily-income', (req, res) => {
+    try {
+      const {
+        orderId,
+        dailyIncome,
+        durationDays,
+        daysRemaining,
+        totalCollected,
+        purchaseTimestamp,
+        lastCollectTimestamp,
+      } = req.body;
+
+      if (!orderId) {
+        return res.status(400).json({ success: false, error: 'Order ID is required' });
+      }
+
+      const serverNow = Date.now();
+      const ONE_DAY_MS = 24 * 60 * 60 * 1000; // Exact 24-hour day duration in ms
+
+      const remDays = Number(daysRemaining);
+      if (isNaN(remDays) || remDays <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'This investment plan has already completed all scheduled returns.',
+          isCompleted: true,
+        });
+      }
+
+      // Base timestamp is either lastCollectTimestamp or purchaseTimestamp
+      const baseTimestamp = Number(lastCollectTimestamp) || Number(purchaseTimestamp) || serverNow;
+      const timeElapsed = serverNow - baseTimestamp;
+
+      // Check if a full 24-hour cycle has elapsed on the SERVER
+      if (timeElapsed < ONE_DAY_MS) {
+        const msRemaining = ONE_DAY_MS - timeElapsed;
+        const hours = Math.floor(msRemaining / (1000 * 60 * 60));
+        const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
+
+        return res.status(400).json({
+          success: false,
+          error: `Next daily profit unlocks in ${hours}h ${minutes}m ${seconds}s (verified by server). Device date modifications are rejected.`,
+          serverTime: serverNow,
+          nextCollectTimestamp: baseTimestamp + ONE_DAY_MS,
+          msRemaining,
+        });
+      }
+
+      // Calculate how many full 24-hour periods have passed since last claim
+      const elapsed24hPeriods = Math.floor(timeElapsed / ONE_DAY_MS);
+      const daysToCredit = Math.min(elapsed24hPeriods, remDays);
+      const numericDaily = Number(dailyIncome) || 0;
+      const creditAmount = daysToCredit * numericDaily;
+      const newDaysRemaining = Math.max(0, remDays - daysToCredit);
+      const newTotalCollected = (Number(totalCollected) || 0) + creditAmount;
+      const newLastCollectTimestamp = baseTimestamp + (daysToCredit * ONE_DAY_MS);
+      const nextCollectTimestamp = newLastCollectTimestamp + ONE_DAY_MS;
+
+      return res.json({
+        success: true,
+        daysCredited: daysToCredit,
+        creditAmount,
+        newDaysRemaining,
+        newTotalCollected,
+        lastCollectTimestamp: newLastCollectTimestamp,
+        nextCollectTimestamp,
+        serverTime: serverNow,
+        isCompleted: newDaysRemaining <= 0,
+        message: `Successfully credited ₹${creditAmount} for ${daysToCredit} day(s) verified on server!`,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message || 'Server time calculation error' });
     }
   });
 

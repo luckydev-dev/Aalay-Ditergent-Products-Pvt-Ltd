@@ -17,7 +17,7 @@ import { getLocalBankInfo } from '../../utils/ifscHelper';
 
 export const WithdrawView: React.FC = () => {
   const { user, bankDetails, requestWithdrawal, setSubScreen, showToast } = useApp();
-  const [amount, setAmount] = useState<string>('1');
+  const [amount, setAmount] = useState<string>('180');
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -28,7 +28,7 @@ export const WithdrawView: React.FC = () => {
 
   const bankInfo = getLocalBankInfo(bankDetails.ifscCode || '');
 
-  const quickAmounts = [1, 10, 50, 100, 500, user.balance > 0 ? Math.floor(user.balance) : 1000];
+  const quickAmounts = [180, 500, 1000, 2000, 5000, user.balance >= 180 ? Math.floor(user.balance) : 10000];
 
   const handleQuickAmount = (val: number) => {
     setAmount(String(val));
@@ -43,8 +43,8 @@ export const WithdrawView: React.FC = () => {
       return;
     }
 
-    if (numAmount < 1) {
-      showToast('Minimum withdrawal amount is ₹1');
+    if (numAmount < 180) {
+      showToast('Minimum withdrawal amount is ₹180');
       return;
     }
 
@@ -82,7 +82,7 @@ export const WithdrawView: React.FC = () => {
           <div className="text-[10px] font-extrabold uppercase tracking-widest text-blue-200 mb-1 flex items-center justify-between">
             <span>WALLET BALANCE</span>
             <span className="bg-white/20 text-white text-[9px] px-2 py-0.5 rounded-full font-bold">
-              Min. ₹1 (Testing Mode)
+              Min. ₹180
             </span>
           </div>
           <div className="text-3xl font-black tracking-tight">
@@ -184,8 +184,8 @@ export const WithdrawView: React.FC = () => {
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                placeholder="0"
-                min="1"
+                placeholder="180"
+                min="180"
                 className="w-full pl-9 pr-4 py-3.5 rounded-2xl bg-slate-50/90 border border-slate-200 text-slate-900 text-base font-black focus:outline-none focus:border-[#0047B3] focus:bg-white transition-all"
               />
             </div>

@@ -20,6 +20,7 @@ import {
   Check,
   Lock,
   KeyRound,
+  Wallet,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
@@ -394,7 +395,28 @@ export const ProfileView: React.FC = () => {
             <ChevronRight size={18} className="text-slate-400" />
           </button>
 
-          {/* 3. Withdrawal Details */}
+          {/* 3. Deposit Details */}
+          <button
+            onClick={() => setSubScreen('deposit-history')}
+            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100/80 rounded-2xl"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <Wallet size={20} />
+              </div>
+              <div className="text-left">
+                <div className="text-sm font-bold text-slate-900">
+                  Deposit Details
+                </div>
+                <div className="text-xs text-slate-400">
+                  UPI transfers, UTR & approvals
+                </div>
+              </div>
+            </div>
+            <ChevronRight size={18} className="text-slate-400" />
+          </button>
+
+          {/* 4. Withdrawal Details */}
           <button
             onClick={() => setSubScreen('withdrawal-history')}
             className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100/80 rounded-2xl"

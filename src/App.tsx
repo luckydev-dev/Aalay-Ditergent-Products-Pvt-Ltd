@@ -21,10 +21,11 @@ import { WelcomeModal } from './components/modals/WelcomeModal';
 import { CustomerServiceSheet } from './components/modals/CustomerServiceSheet';
 import { LiveChatModal } from './components/modals/LiveChatModal';
 import { InviteModal } from './components/modals/InviteModal';
+import { DatabaseSplashLoader } from './components/common/DatabaseSplashLoader';
 import { CheckCircle2 } from 'lucide-react';
 
 const AppContent: React.FC = () => {
-  const { user, activeTab, subScreen, setSubScreen, toastMessage, setShowWelcomeModal } = useApp();
+  const { user, activeTab, subScreen, setSubScreen, toastMessage, setShowWelcomeModal, isDatabaseLoading } = useApp();
 
   const [isAdminRoute, setIsAdminRoute] = React.useState<boolean>(() => {
     if (typeof window !== 'undefined') {
@@ -88,6 +89,11 @@ const AppContent: React.FC = () => {
     }
   }, [user.isLoggedIn, setShowWelcomeModal]);
 
+  // Full-Screen Branded Database Loader on Startup
+  if (isDatabaseLoading) {
+    return <DatabaseSplashLoader />;
+  }
+
   // Standalone Full-Screen Admin Dashboard Suite (/admin)
   if (subScreen === 'admin' || isAdminRoute) {
     return (
@@ -129,6 +135,8 @@ const AppContent: React.FC = () => {
         return <AccountRecordView />;
       case 'withdrawal-history':
         return <WithdrawalHistoryView />;
+      case 'deposit-history':
+        return <RechargeView initialTab="history" />;
       case 'security':
         return <SecurityView />;
       case 'about-us':

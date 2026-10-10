@@ -10,6 +10,7 @@ export type SubScreen =
   | 'purchase-record'
   | 'account-record'
   | 'withdrawal-history'
+  | 'deposit-history'
   | 'security'
   | 'about-us'
   | 'notifications'
@@ -91,6 +92,9 @@ export interface PurchasedOrder {
   imageType: string;
   imageUrl?: string;
   totalCollected: number;
+  purchaseTimestamp?: number;
+  lastCollectTimestamp?: number;
+  serverNextCollectTimestamp?: number;
 }
 
 export interface TransactionRecord {

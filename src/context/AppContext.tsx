@@ -37,115 +37,7 @@ import {
   FirebaseUser,
 } from '../firebase';
 
-export const INITIAL_PLANS: ProductPlan[] = [
-  {
-    id: 'product-test-1rs',
-    name: '⚡ ₹1 Fast Test Trial Pack (Testing Mode)',
-    tag: '1 Rs Testing',
-    tagType: 'popular',
-    price: 1,
-    durationDays: 1,
-    dailyIncome: 2,
-    totalRevenue: 2,
-    type: 'normal',
-    imageType: 'fevicol',
-    description: 'Official ₹1 trial plan enabled for testing transactions, payouts, and wallet operations.',
-  },
-  {
-    id: 'most-popular',
-    name: 'Aalay Active Wash Powder 1kg',
-    tag: 'Popular',
-    tagType: 'popular',
-    price: 700,
-    durationDays: 2,
-    dailyIncome: 3250,
-    totalRevenue: 6500,
-    type: 'normal',
-    imageType: 'fevicol',
-    description: 'Aalay Active Wash Powder with Micro-Enzyme stain removal & active oxygen whiteness',
-  },
-  {
-    id: 'product-a',
-    name: 'Aalay Super White Cake (Pack of 6)',
-    tag: 'Best Value',
-    tagType: 'best-value',
-    price: 450,
-    durationDays: 50,
-    dailyIncome: 270,
-    totalRevenue: 13500,
-    type: 'normal',
-    imageType: 'drfixit',
-    description: 'Aalay Long-Lasting Laundry Detergent Soap Bar with Lemon freshness extract',
-  },
-  {
-    id: 'product-b',
-    name: 'Aalay Lemon & Neem Fresh Powder 3kg',
-    price: 900,
-    durationDays: 45,
-    dailyIncome: 640,
-    totalRevenue: 28800,
-    type: 'normal',
-    imageType: 'mseal',
-    description: 'Aalay Deep fiber germ-protection washing powder with natural lemon & neem oil',
-  },
-  {
-    id: 'product-c',
-    name: 'Aalay Blue Shine Stain Remover Bar',
-    price: 1500,
-    durationDays: 36,
-    dailyIncome: 1230,
-    totalRevenue: 44280,
-    type: 'normal',
-    imageType: 'tilefix',
-    description: 'Aalay Tough cuff & collar dirt removal detergent cake with fabric optical brighteners',
-  },
-  {
-    id: 'product-d',
-    name: 'Aalay Matic Machine Wash 5kg Bucket',
-    price: 2100,
-    durationDays: 30,
-    dailyIncome: 1740,
-    totalRevenue: 52200,
-    type: 'normal',
-    imageType: 'laticrete',
-    description: 'Aalay High-efficiency low-foam laundry bucket with measuring scoop for all machines',
-  },
-  {
-    id: 'product-e',
-    name: 'Aalay Ultra Clean Soap Cake Family Pack',
-    price: 2850,
-    durationDays: 25,
-    dailyIncome: 2560,
-    totalRevenue: 64000,
-    type: 'normal',
-    imageType: 'acrylic',
-    description: 'Aalay 12-bar value pack with gentle skin protection and vibrant fabric care',
-  },
-  // VIP Plans
-  {
-    id: 'vip-1',
-    name: 'VIP Ultra Gold Detergent Compound',
-    tag: 'VIP Only',
-    price: 3500,
-    durationDays: 20,
-    dailyIncome: 3800,
-    totalRevenue: 76000,
-    type: 'vip',
-    imageType: 'fevicol',
-    description: 'Exclusive industrial detergent compound with high-efficiency surfactant booster',
-  },
-  {
-    id: 'vip-2',
-    name: 'VIP Premium Laundry Care Kit',
-    price: 5000,
-    durationDays: 15,
-    dailyIncome: 6200,
-    totalRevenue: 93000,
-    type: 'vip',
-    imageType: 'drfixit',
-    description: 'Complete commercial bundle: 10kg washing powder, 20 detergent cakes & liquid brightener',
-  },
-];
+export const INITIAL_PLANS: ProductPlan[] = [];
 
 export const INITIAL_MISSIONS: TeamMission[] = [
   { id: 'm-1', requiredMembers: 1, rewardAmount: 200, claimed: false },
@@ -215,6 +107,7 @@ interface AppContextType {
   firebaseUid: string | null;
   isFirebaseConnected: boolean;
   isAuthLoading: boolean;
+  isDatabaseLoading: boolean;
   bankDetails: BankDetails;
   plans: ProductPlan[];
   orders: PurchasedOrder[];
@@ -263,7 +156,7 @@ interface AppContextType {
   rejectRechargeRequestInDb: (requestId: string, reason?: string) => Promise<boolean>;
   requestWithdrawal: (amount: number) => { success: boolean; message: string };
   buyPlan: (planId: string) => { success: boolean; message: string };
-  collectOrderIncome: (orderId: string) => boolean;
+  collectOrderIncome: (orderId: string) => Promise<boolean>;
   spinLuckyDraw: (wonAmount: number) => void;
   redeemGiftCode: (code: string) => { success: boolean; message: string; amount?: number };
   claimMission: (missionId: string) => boolean;
@@ -319,19 +212,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return DEFAULT_BANK;
   });
 
-  const [plans, setPlans] = useState<ProductPlan[]>(() => {
-    const saved = localStorage.getItem('aaley_product_plans');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return INITIAL_PLANS;
-  });
+  // Live Cloud Database Plans - Zero localStorage storage, admin adds/edits via dashboard
+  const [plans, setPlans] = useState<ProductPlan[]>([]);
+  const [isDatabaseLoading, setIsDatabaseLoading] = useState<boolean>(true);
 
+  // Safety fallback: prevents infinite spinner if user is completely offline
   useEffect(() => {
-    localStorage.setItem('aaley_product_plans', JSON.stringify(plans));
-  }, [plans]);
+    // Clear out any old legacy mock plans cached in localStorage
+    try {
+      localStorage.removeItem('aaley_product_plans');
+      localStorage.removeItem('aalay_product_plans');
+    } catch (e) {}
+
+    const timer = setTimeout(() => {
+      setIsDatabaseLoading(false);
+    }, 2200);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const [orders, setOrders] = useState<PurchasedOrder[]>(() => {
     const saved = localStorage.getItem('aaley_orders');
@@ -667,10 +565,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {}
   }, []);
 
+  // Sync product plans with Firebase RTDB (Database-First, pure RTDB, no localStorage)
+  useEffect(() => {
+    try {
+      const plansRef = ref(rtdb, 'config/plans');
+      onValue(
+        plansRef,
+        (snapshot) => {
+          if (snapshot.exists()) {
+            const val = snapshot.val();
+            const list: ProductPlan[] = Array.isArray(val) ? val : Object.values(val);
+            setPlans(Array.isArray(list) ? list : []);
+          } else {
+            // Live database currently has no products: admin will add them via dashboard
+            setPlans([]);
+          }
+          setIsDatabaseLoading(false);
+        },
+        () => {
+          setPlans([]);
+          setIsDatabaseLoading(false);
+        }
+      );
+      return () => {
+        off(plansRef);
+      };
+    } catch (e) {
+      setIsDatabaseLoading(false);
+    }
+  }, []);
+
   // Helper to prevent duplicate credits for the same order
   const isOrderAlreadyCredited = (orderId: string): boolean => {
     try {
-      const raw = localStorage.getItem('credited_fampay_orders');
+      const raw = localStorage.getItem('credited_rupayex_orders');
       const list: string[] = raw ? JSON.parse(raw) : [];
       return Array.isArray(list) && list.includes(orderId);
     } catch {
@@ -680,66 +608,90 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const markOrderCredited = (orderId: string) => {
     try {
-      const raw = localStorage.getItem('credited_fampay_orders');
+      const raw = localStorage.getItem('credited_rupayex_orders');
       const list: string[] = raw ? JSON.parse(raw) : [];
       if (!list.includes(orderId)) {
         list.push(orderId);
-        localStorage.setItem('credited_fampay_orders', JSON.stringify(list));
+        localStorage.setItem('credited_rupayex_orders', JSON.stringify(list));
       }
     } catch (e) {
       console.error('Error saving credited order ID', e);
     }
   };
 
-  // Continuous background auto-detection for pending Fampay recharge orders
+  // Continuous background auto-detection for pending Rupayex recharge orders
   useEffect(() => {
     let isVerifyingNow = false;
 
     const checkPendingDepositAutomatically = async () => {
-      const pendingRaw = localStorage.getItem('pending_fampay_recharge');
+      const pendingRaw = localStorage.getItem('pending_rupayex_recharge');
       if (!pendingRaw || isVerifyingNow) return;
 
       try {
         const parsed = JSON.parse(pendingRaw);
         if (!parsed || !parsed.amount || !parsed.orderRef) return;
 
-        // If older than 20 minutes, expire order
-        if (parsed.createdAt && Date.now() - parsed.createdAt > 20 * 60 * 1000) {
-          localStorage.removeItem('pending_fampay_recharge');
+        // If older than 25 minutes, expire order
+        if (parsed.createdAt && Date.now() - parsed.createdAt > 25 * 60 * 1000) {
+          localStorage.removeItem('pending_rupayex_recharge');
           return;
         }
 
         // Avoid crediting same order twice
         if (isOrderAlreadyCredited(parsed.orderRef)) {
-          localStorage.removeItem('pending_fampay_recharge');
+          localStorage.removeItem('pending_rupayex_recharge');
           return;
         }
 
         isVerifyingNow = true;
-        const res = await fetch('/api/verify-fampay-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ order_id: parsed.orderRef }),
-        });
+        const res = await fetch(`/api/rupayex/order-status?order_id=${encodeURIComponent(parsed.orderRef)}`);
 
         if (res.ok) {
           const data = await res.json();
-          if (data && data.status === 'success') {
-            // STRICT VERIFICATION PASSED: Confirmed by Fampay Gateway!
+          if (data && (data.status === true || data.status === 'SUCCESS') && data.payment_status === 'SUCCESS') {
+            // STRICT VERIFICATION PASSED: Confirmed by Rupayex Gateway!
             markOrderCredited(parsed.orderRef);
-            localStorage.removeItem('pending_fampay_recharge');
+            localStorage.removeItem('pending_rupayex_recharge');
 
-            const channelName = parsed.channel || 'CHANNEL A';
+            const channelName = parsed.channel || 'Rupayex Gateway';
             const utrString = data.utr ? ` | UTR: ${data.utr}` : '';
+            const creditedAmt = Number(data.amount) || Number(parsed.amount);
+
             await rechargeWallet(
-              Number(parsed.amount),
-              `${channelName} (Fampay Auto: ${parsed.orderRef}${utrString})`
+              creditedAmt,
+              `${channelName} (Auto: ${parsed.orderRef}${utrString})`
             );
-            showToast(`₹${parsed.amount} received & added to your wallet automatically!`);
+
+            // Add to Deposit History
+            const approvedReq: RechargeRequest = {
+              id: parsed.orderRef,
+              uid: user.uid || `user_${user.phone}`,
+              userName: user.name || 'User',
+              userPhone: user.phone || '',
+              amount: creditedAmt,
+              utr: data.utr || parsed.orderRef,
+              date:
+                new Date().toLocaleDateString('en-GB') +
+                ' ' +
+                new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              timestamp: Date.now(),
+              status: 'approved',
+              channel: 'Rupayex Gateway',
+              autoVerified: true,
+            };
+
+            setRechargeRequests((prev) => [approvedReq, ...prev.filter((r) => r.id !== parsed.orderRef)]);
+            try {
+              const currentList = JSON.parse(localStorage.getItem('aaley_recharge_requests') || '[]');
+              localStorage.setItem('aaley_recharge_requests', JSON.stringify([approvedReq, ...currentList.filter((r: any) => r.id !== parsed.orderRef)]));
+              set(ref(rtdb, `recharge_requests/${parsed.orderRef}`), approvedReq).catch(() => {});
+            } catch (e) {}
+
+            showToast(`₹${creditedAmt} received & added to your wallet automatically via Rupayex!`);
           }
         }
       } catch (err) {
-        console.debug('Background deposit auto-check failed (will retry):', err);
+        console.debug('Background Rupayex deposit auto-check failed (will retry):', err);
       } finally {
         isVerifyingNow = false;
       }
@@ -753,7 +705,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       checkPendingDepositAutomatically();
     }, 4000);
 
-    // 3. Immediately re-check whenever user returns to tab/app (from UPI app)
+    // 3. Immediately re-check whenever user returns to tab/app (from payment app)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         checkPendingDepositAutomatically();
@@ -1419,8 +1371,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!bankDetails.isSaved || !bankDetails.accountNumber) {
       return { success: false, message: 'Please bind your Bank Card first before withdrawing.' };
     }
-    if (amount < 1) {
-      return { success: false, message: 'Minimum withdrawal amount is ₹1.' };
+    if (amount < 180) {
+      return { success: false, message: 'Minimum withdrawal amount is ₹180.' };
     }
     if (amount > user.balance) {
       return { success: false, message: 'Insufficient wallet balance.' };
@@ -1495,6 +1447,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       balance: prev.balance - plan.price,
     }));
 
+    const serverNow = Date.now();
     const newOrder: PurchasedOrder = {
       orderId: `ORD-${Math.floor(100000 + Math.random() * 900000)}`,
       planId: plan.id,
@@ -1505,11 +1458,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       durationDays: plan.durationDays,
       daysRemaining: plan.durationDays,
       purchaseDate: new Date().toLocaleDateString('en-GB'),
-      nextCollectTime: 'Ready to Collect',
+      nextCollectTime: '24h 00m',
       type: plan.type,
       imageType: plan.imageType,
       imageUrl: plan.imageUrl,
       totalCollected: 0,
+      purchaseTimestamp: serverNow,
+      lastCollectTimestamp: serverNow,
+      serverNextCollectTimestamp: serverNow + 24 * 60 * 60 * 1000,
     };
 
     setOrders((prev) => [newOrder, ...prev]);
@@ -1532,45 +1488,74 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: `Successfully purchased ${plan.name}!` };
   };
 
-  const collectOrderIncome = (orderId: string): boolean => {
+  const collectOrderIncome = async (orderId: string): Promise<boolean> => {
     const order = orders.find((o) => o.orderId === orderId);
     if (!order) return false;
 
-    setUser((prev) => ({
-      ...prev,
-      balance: prev.balance + order.dailyIncome,
-      totalIncome: prev.totalIncome + order.dailyIncome,
-    }));
+    try {
+      const res = await fetch('/api/orders/collect-daily-income', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.orderId,
+          dailyIncome: order.dailyIncome,
+          durationDays: order.durationDays,
+          daysRemaining: order.daysRemaining,
+          totalCollected: order.totalCollected,
+          purchaseTimestamp: order.purchaseTimestamp,
+          lastCollectTimestamp: order.lastCollectTimestamp,
+        }),
+      });
 
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.orderId === orderId
-          ? {
-              ...o,
-              totalCollected: o.totalCollected + order.dailyIncome,
-              daysRemaining: Math.max(0, o.daysRemaining - 1),
-              nextCollectTime: '23h 59m',
-            }
-          : o
-      )
-    );
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        showToast(data.error || 'Server 24-hour cycle has not completed yet.');
+        return false;
+      }
 
-    const newTx: TransactionRecord = {
-      id: `tx-inc-${Date.now()}`,
-      title: `Daily Profit: ${order.planName}`,
-      amount: order.dailyIncome,
-      type: 'income',
-      category: 'plan_income',
-      date:
-        new Date().toLocaleDateString('en-GB') +
-        ' ' +
-        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'completed',
-    };
+      // Validated by server!
+      const creditAmount = data.creditAmount;
+      setUser((prev) => ({
+        ...prev,
+        balance: prev.balance + creditAmount,
+        totalIncome: prev.totalIncome + creditAmount,
+      }));
 
-    setTransactions((prev) => [newTx, ...prev]);
-    showToast(`Collected ₹${order.dailyIncome} daily income!`);
-    return true;
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.orderId === orderId
+            ? {
+                ...o,
+                totalCollected: data.newTotalCollected,
+                daysRemaining: data.newDaysRemaining,
+                lastCollectTimestamp: data.lastCollectTimestamp,
+                serverNextCollectTimestamp: data.nextCollectTimestamp,
+                nextCollectTime: data.newDaysRemaining <= 0 ? 'Completed' : '24h 00m',
+              }
+            : o
+        )
+      );
+
+      const newTx: TransactionRecord = {
+        id: `tx-inc-${Date.now()}`,
+        title: `Daily Profit: ${order.planName}`,
+        amount: creditAmount,
+        type: 'income',
+        category: 'plan_income',
+        date:
+          new Date().toLocaleDateString('en-GB') +
+          ' ' +
+          new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        status: 'completed',
+      };
+
+      setTransactions((prev) => [newTx, ...prev]);
+      showToast(data.message || `Collected ₹${creditAmount} daily profit!`);
+      return true;
+    } catch (err: any) {
+      showToast(`Verification error: ${err.message}`);
+      return false;
+    }
   };
 
   const spinLuckyDraw = (wonAmount: number) => {
@@ -1951,12 +1936,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addNewPlan = (newPlan: ProductPlan) => {
-    setPlans((prev) => {
-      const next = [newPlan, ...prev];
-      localStorage.setItem('aalay_product_plans', JSON.stringify(next));
-      localStorage.setItem('aaley_product_plans', JSON.stringify(next));
-      return next;
-    });
+    setPlans((prev) => [newPlan, ...prev]);
 
     try {
       set(ref(rtdb, `config/plans/${newPlan.id}`), newPlan).catch(() => {});
@@ -1966,12 +1946,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deletePlan = (planId: string) => {
-    setPlans((prev) => {
-      const next = prev.filter((p) => p.id !== planId);
-      localStorage.setItem('aalay_product_plans', JSON.stringify(next));
-      localStorage.setItem('aaley_product_plans', JSON.stringify(next));
-      return next;
-    });
+    setPlans((prev) => prev.filter((p) => p.id !== planId));
 
     try {
       set(ref(rtdb, `config/plans/${planId}`), null).catch(() => {});
@@ -1981,14 +1956,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updatePlan = (updatedPlan: ProductPlan) => {
-    setPlans((prev) => {
-      const next = prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p));
-      localStorage.setItem('aalay_product_plans', JSON.stringify(next));
-      localStorage.setItem('aaley_product_plans', JSON.stringify(next));
-      return next;
-    });
+    setPlans((prev) => prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p)));
 
-    // Save to RTDB safely
+    // Save to RTDB directly
     try {
       set(ref(rtdb, `config/plans/${updatedPlan.id}`), updatedPlan).catch(() => {});
     } catch (e) {}
@@ -1997,13 +1967,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const resetPlansToDefault = () => {
-    setPlans(INITIAL_PLANS);
-    localStorage.setItem('aalay_product_plans', JSON.stringify(INITIAL_PLANS));
-    localStorage.setItem('aaley_product_plans', JSON.stringify(INITIAL_PLANS));
+    // Clear catalog so admin can add fresh custom plans
+    setPlans([]);
     try {
-      set(ref(rtdb, 'config/plans'), INITIAL_PLANS).catch(() => {});
+      set(ref(rtdb, 'config/plans'), null).catch(() => {});
     } catch (e) {}
-    showToast('All products reset to default factory plans.');
+    showToast('Product plans cleared. You can add new products anytime.');
   };
 
   return (
@@ -2013,6 +1982,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         firebaseUid: firebaseUser?.uid || null,
         isFirebaseConnected,
         isAuthLoading,
+        isDatabaseLoading,
         bankDetails,
         plans,
         orders,

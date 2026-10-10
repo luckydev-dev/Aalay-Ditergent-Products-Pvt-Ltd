@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CreditCard, Download, ClipboardList, QrCode, Headset, BarChart3, Coins, ShoppingCart } from 'lucide-react';
+import { CreditCard, Download, ClipboardList, QrCode, Headset, BarChart3, Coins, ShoppingCart, Package } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { HomePromoBanner } from '../common/HomePromoBanner';
 import { ProductImage } from '../common/ProductImage';
@@ -16,7 +16,8 @@ export const HomeView: React.FC = () => {
 
   const [activePlanTab, setActivePlanTab] = useState<'normal' | 'vip'>('normal');
 
-  const filteredPlans = plans.filter((p) => p.type === activePlanTab);
+  // Pure live database plans from Firebase RTDB (no mock seeding)
+  const displayPlans = (plans || []).filter((p) => p.type === activePlanTab);
 
   return (
     <div className="pb-24 pt-3 px-3 sm:px-4 space-y-4 max-w-md mx-auto">
@@ -110,82 +111,96 @@ export const HomeView: React.FC = () => {
 
       {/* 4. Product Investment Cards */}
       <div className="space-y-4">
-        {filteredPlans.map((plan) => (
-          <div
-            key={plan.id}
-            className="bg-white rounded-3xl p-4 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-100 relative overflow-hidden transition-all duration-200 hover:shadow-lg"
-          >
-            {/* Top-right decorative ribbon */}
-            {plan.tag && (
-              <div
-                className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-extrabold uppercase tracking-wider text-white shadow-xs ${
-                  plan.tagType === 'popular'
-                    ? 'bg-gradient-to-r from-blue-600 to-[#0047B3]'
-                    : 'bg-gradient-to-r from-amber-500 to-amber-600'
-                }`}
-              >
-                {plan.tag}
-              </div>
-            )}
-
-            {/* Product Top Header */}
-            <div className="mb-3 pr-16">
-              <h3 className="text-base font-extrabold text-slate-900 leading-snug">
-                {plan.name}
-              </h3>
-              <div className="flex items-baseline gap-1 mt-0.5">
-                <span className="text-xl font-black text-[#0047B3] tracking-tight">
-                  ₹{plan.price.toLocaleString('en-IN')}
-                </span>
-                <span className="text-xs font-semibold text-slate-400">
-                  /{plan.durationDays} Days
-                </span>
-              </div>
+        {displayPlans.length === 0 ? (
+          <div className="bg-white rounded-3xl p-8 text-center shadow-[0_2px_14px_rgba(0,0,0,0.04)] border border-slate-100">
+            <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center mx-auto mb-3">
+              <Package size={26} />
             </div>
-
-            {/* Body: Product Image + Daily/Total Returns */}
-            <div className="flex items-center gap-4 mb-4">
-              {/* Product Visual Container */}
-              <div className="w-28 h-28 shrink-0">
-                <ProductImage type={plan.imageType} imageUrl={plan.imageUrl} alt={plan.name} className="w-full h-full" />
-              </div>
-
-              {/* Statistics Grid */}
-              <div className="flex-1 space-y-2.5">
-                {/* Daily Return */}
-                <div className="bg-slate-50/90 rounded-2xl p-2.5 flex items-center justify-between border border-slate-100/80">
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                    <BarChart3 size={15} className="text-[#0047B3]" />
-                    <span>Daily</span>
-                  </div>
-                  <span className="text-sm font-extrabold text-slate-900">
-                    ₹{plan.dailyIncome.toLocaleString('en-IN')}
-                  </span>
-                </div>
-
-                {/* Total Return */}
-                <div className="bg-slate-50/90 rounded-2xl p-2.5 flex items-center justify-between border border-slate-100/80">
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                    <Coins size={15} className="text-amber-500" />
-                    <span>Total</span>
-                  </div>
-                  <span className="text-sm font-black text-[#0047B3]">
-                    ₹{plan.totalRevenue.toLocaleString('en-IN')}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Buy Now Button */}
-            <button
-              onClick={() => buyPlan(plan.id)}
-              className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#0047B3] to-[#005cdb] hover:from-[#003d99] hover:to-[#004ea8] active:scale-[0.98] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md shadow-blue-900/15 transition-all"
-            >
-              <ShoppingCart size={17} />
-              <span>Buy Now</span>
-            </button>
+            <h4 className="text-base font-extrabold text-slate-900 mb-1">
+              No {activePlanTab === 'normal' ? 'Normal' : 'VIP'} Plans Available
+            </h4>
+            <p className="text-xs text-slate-400 max-w-xs mx-auto">
+              New high-yield investment product plans will be released soon. Stay tuned!
+            </p>
           </div>
-        ))}
+        ) : (
+          displayPlans.map((plan) => (
+            <div
+              key={plan.id}
+              className="bg-white rounded-3xl p-4 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-100 relative overflow-hidden transition-all duration-200 hover:shadow-lg"
+            >
+              {/* Top-right decorative ribbon */}
+              {plan.tag && (
+                <div
+                  className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-extrabold uppercase tracking-wider text-white shadow-xs ${
+                    plan.tagType === 'popular'
+                      ? 'bg-gradient-to-r from-blue-600 to-[#0047B3]'
+                      : 'bg-gradient-to-r from-amber-500 to-amber-600'
+                  }`}
+                >
+                  {plan.tag}
+                </div>
+              )}
+
+              {/* Product Top Header */}
+              <div className="mb-3 pr-16">
+                <h3 className="text-base font-extrabold text-slate-900 leading-snug">
+                  {plan.name}
+                </h3>
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <span className="text-xl font-black text-[#0047B3] tracking-tight">
+                    ₹{plan.price.toLocaleString('en-IN')}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-400">
+                    /{plan.durationDays} Days
+                  </span>
+                </div>
+              </div>
+
+              {/* Body: Product Image + Daily/Total Returns */}
+              <div className="flex items-center gap-4 mb-4">
+                {/* Product Visual Container */}
+                <div className="w-28 h-28 shrink-0">
+                  <ProductImage type={plan.imageType} imageUrl={plan.imageUrl} alt={plan.name} className="w-full h-full" />
+                </div>
+
+                {/* Statistics Grid */}
+                <div className="flex-1 space-y-2.5">
+                  {/* Daily Return */}
+                  <div className="bg-slate-50/90 rounded-2xl p-2.5 flex items-center justify-between border border-slate-100/80">
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                      <BarChart3 size={15} className="text-[#0047B3]" />
+                      <span>Daily</span>
+                    </div>
+                    <span className="text-sm font-extrabold text-slate-900">
+                      ₹{plan.dailyIncome.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+
+                  {/* Total Return */}
+                  <div className="bg-slate-50/90 rounded-2xl p-2.5 flex items-center justify-between border border-slate-100/80">
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                      <Coins size={15} className="text-amber-500" />
+                      <span>Total</span>
+                    </div>
+                    <span className="text-sm font-black text-[#0047B3]">
+                      ₹{plan.totalRevenue.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Buy Now Button */}
+              <button
+                onClick={() => buyPlan(plan.id)}
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#0047B3] to-[#005cdb] hover:from-[#003d99] hover:to-[#004ea8] active:scale-[0.98] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md shadow-blue-900/15 transition-all"
+              >
+                <ShoppingCart size={17} />
+                <span>Buy Now</span>
+              </button>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

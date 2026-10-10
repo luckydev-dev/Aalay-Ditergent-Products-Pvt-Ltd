@@ -160,6 +160,14 @@ export const AdminDashboardView: React.FC = () => {
   const [roleToggleTarget, setRoleToggleTarget] = useState<SystemUserItem | null>(null);
   const [withdrawalToReject, setWithdrawalToReject] = useState<SystemWithdrawalItem | null>(null);
 
+  // Rupayex Gateway integration states
+  const [rupayexBalance, setRupayexBalance] = useState<number | null>(null);
+  const [isLoadingRupayexBalance, setIsLoadingRupayexBalance] = useState<boolean>(false);
+  const [isTokenModalOpen, setIsTokenModalOpen] = useState<boolean>(false);
+  const [rupayexTokenInput, setRupayexTokenInput] = useState<string>('c0bfc67f130d640a0f7f9737de2f9af6');
+  const [maskedRupayexToken, setMaskedRupayexToken] = useState<string>('');
+  const [isProcessingPayoutId, setIsProcessingPayoutId] = useState<string | null>(null);
+
   // Master Access Passcode state (for unauthenticated or non-owner direct /admin visits)
   const [masterPassInput, setMasterPassInput] = useState<string>('');
   const [isUnlockedDirectly, setIsUnlockedDirectly] = useState<boolean>(false);
@@ -174,6 +182,67 @@ export const AdminDashboardView: React.FC = () => {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const fetchRupayexBalance = async () => {
+    setIsLoadingRupayexBalance(true);
+    try {
+      const res = await fetch('/api/rupayex/wallet-balance');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && (data.status === true || typeof data.balance === 'number')) {
+          setRupayexBalance(Number(data.balance) || 0);
+        }
+      }
+    } catch (e) {
+      console.debug('Failed to fetch Rupayex wallet balance:', e);
+    } finally {
+      setIsLoadingRupayexBalance(false);
+    }
+  };
+
+  const fetchRupayexConfig = async () => {
+    try {
+      const res = await fetch('/api/rupayex/config');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.token) {
+          setRupayexTokenInput(data.token);
+          setMaskedRupayexToken(data.tokenMasked || data.token);
+        }
+      }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    fetchRupayexBalance();
+    fetchRupayexConfig();
+  }, []);
+
+  const handleSaveRupayexToken = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rupayexTokenInput.trim()) {
+      showToast('Please enter a valid token');
+      return;
+    }
+    try {
+      const res = await fetch('/api/rupayex/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: rupayexTokenInput.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok && data.status) {
+        showToast('Rupayex API Token updated successfully!');
+        setIsTokenModalOpen(false);
+        fetchRupayexConfig();
+        fetchRupayexBalance();
+      } else {
+        showToast(data.error || 'Failed to update token');
+      }
+    } catch (err: any) {
+      showToast(`Error: ${err.message}`);
+    }
+  };
 
   const isOwner = user.role === 'owner' || isUnlockedDirectly;
 
@@ -463,12 +532,45 @@ export const AdminDashboardView: React.FC = () => {
     fetchAllSystemData();
   };
 
-  // Approve withdrawal
+  // Approve withdrawal with instant automated Rupayex payout dispatch
   const handleApproveWithdrawal = async (item: SystemWithdrawalItem) => {
+    setIsProcessingPayoutId(item.withdrawalId);
+    showToast(`Dispatching Rupayex automated payout of ₹${item.amount}...`);
+
+    try {
+      const payoutRes = await fetch('/api/rupayex/create-payout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: item.amount,
+          method: item.bankAccount ? 'bank' : 'upi',
+          account_holder: item.userName || 'Account Holder',
+          account_number: item.bankAccount || '',
+          ifsc_code: item.ifsc || '',
+          bank_name: 'Commercial Bank',
+          payout_id: item.withdrawalId,
+        }),
+      });
+
+      const payoutData = await payoutRes.json();
+      if (payoutRes.ok && payoutData && (payoutData.status === true || payoutData.data?.payout_id)) {
+        const pId = payoutData.data?.payout_id || item.withdrawalId;
+        showToast(`Rupayex Payout Dispatched! ID: ${pId}`);
+      } else {
+        showToast(`Payout recorded in system: ${payoutData.message || payoutData.error || 'Approved'}`);
+      }
+    } catch (err: any) {
+      console.warn('Rupayex automated payout warning:', err);
+      showToast(`Payout approved in system (Gateway notice: ${err.message})`);
+    } finally {
+      setIsProcessingPayoutId(null);
+    }
+
     await approveWithdrawalInDb(item.uid, item.withdrawalId);
     setWithdrawalsList((prev) =>
       prev.map((w) => (w.withdrawalId === item.withdrawalId ? { ...w, status: 'completed' } : w))
     );
+    fetchRupayexBalance();
   };
 
   // Reject withdrawal
@@ -2403,7 +2505,7 @@ export const AdminDashboardView: React.FC = () => {
 
                 {plans.length === 0 && (
                   <div className="text-center py-12 text-slate-500 text-xs font-bold">
-                    No factory units found. Click &quot;Add New Product&quot; or &quot;Reset Defaults&quot; to restore plans.
+                    No products in catalog yet. Click &quot;Add New Product&quot; above to publish your first plan directly to the database.
                   </div>
                 )}
               </div>
