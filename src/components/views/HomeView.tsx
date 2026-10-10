@@ -240,7 +240,7 @@ export const HomeView: React.FC = () => {
                     <ProductImage type={plan.imageType} imageUrl={plan.imageUrl} alt={plan.name} className="w-full h-full" />
                     {isPlanVipLocked && (
                       <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px] rounded-2xl flex flex-col items-center justify-center text-amber-400 p-1 text-center">
-                        <Lock size={22} className="mb-1 animate-bounce" />
+                        <Lock size={22} className="mb-1 text-amber-300" />
                         <span className="text-[9px] font-black uppercase tracking-wider text-white">VIP ONLY</span>
                       </div>
                     )}

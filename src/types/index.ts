@@ -56,6 +56,8 @@ export interface TeamMember {
   name: string;
   phone: string;
   joinedDate: string;
+  joinDate?: string;
+  avatar?: string;
   level: 1 | 2 | 3;
   totalRecharge: number;
   commissionEarned: number;

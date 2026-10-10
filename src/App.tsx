@@ -91,9 +91,9 @@ const AppContent: React.FC = () => {
     }
   }, [user.isLoggedIn, setShowWelcomeModal]);
 
-  // Full-Screen Branded Database Loader on Startup
+  // Full-Screen Branded Splash Loader on Startup
   if (isDatabaseLoading) {
-    return <DatabaseSplashLoader imageSrc={user?.avatar} statusText="Syncing verified database..." />;
+    return <DatabaseSplashLoader imageSrc={user?.avatar} statusText="Loading Aalay..." />;
   }
 
   // Standalone Full-Screen Admin Dashboard Suite (/admin)

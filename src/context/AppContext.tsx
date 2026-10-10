@@ -260,6 +260,7 @@ interface AppContextType {
   spinLuckyDraw: (wonAmount: number) => void;
   redeemGiftCode: (code: string) => { success: boolean; message: string; amount?: number };
   createGiftCode: (codeData: Omit<GiftCode, 'id' | 'timesClaimed' | 'createdAt'>) => GiftCode;
+  updateGiftCode: (updatedCode: GiftCode) => void;
   deleteGiftCode: (id: string) => void;
   claimMission: (missionId: string) => boolean;
   markNotificationRead: (id: string) => void;
@@ -331,9 +332,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [giftCodes, setGiftCodes] = useState<GiftCode[]>(() => {
     try {
       const saved = localStorage.getItem('aaley_gift_codes');
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
     return DEFAULT_GIFT_CODES;
@@ -751,6 +752,79 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       setIsDatabaseLoading(false);
     }
+  }, []);
+
+  // Sync Gift Codes from Realtime Database
+  useEffect(() => {
+    let active = true;
+
+    const parseGiftVal = (val: any): GiftCode[] => {
+      if (!val) return [];
+      const rawList = Array.isArray(val) ? val : Object.values(val);
+      return (rawList as any[])
+        .filter((g) => g && typeof g === 'object' && g.id && g.code)
+        .map((g) => ({
+          id: String(g.id),
+          code: String(g.code).toUpperCase(),
+          rewardAmount: Number(g.rewardAmount) || 0,
+          maxClaims: Number(g.maxClaims) || 0,
+          timesClaimed: Number(g.timesClaimed) || 0,
+          expiresAt: g.expiresAt ? String(g.expiresAt) : undefined,
+          claimedBy: Array.isArray(g.claimedBy) ? g.claimedBy : [],
+          createdAt: Number(g.createdAt) || Date.now(),
+          active: g.active !== undefined ? Boolean(g.active) : true,
+        }));
+    };
+
+    const handleSnapshot = (snapshot: any) => {
+      if (!active) return;
+      if (snapshot.exists() && snapshot.val()) {
+        const parsed = parseGiftVal(snapshot.val());
+        setGiftCodes(parsed);
+      } else {
+        get(ref(rtdb, 'gift_codes'))
+          .then((snap) => {
+            if (!active) return;
+            if (snap.exists() && snap.val()) {
+              setGiftCodes(parseGiftVal(snap.val()));
+            } else {
+              const seedFlag = localStorage.getItem('aaley_gift_codes_seeded');
+              if (!seedFlag) {
+                DEFAULT_GIFT_CODES.forEach((gc) => {
+                  set(ref(rtdb, `config/gift_codes/${gc.id}`), gc).catch(() => {});
+                  set(ref(rtdb, `gift_codes/${gc.id}`), gc).catch(() => {});
+                });
+                localStorage.setItem('aaley_gift_codes_seeded', 'true');
+                setGiftCodes(DEFAULT_GIFT_CODES);
+              } else {
+                setGiftCodes([]);
+              }
+            }
+          })
+          .catch(() => {});
+      }
+    };
+
+    try {
+      const configGiftRef = ref(rtdb, 'config/gift_codes');
+      onValue(configGiftRef, handleSnapshot, () => {
+        get(ref(rtdb, 'gift_codes'))
+          .then((snap) => {
+            if (!active) return;
+            if (snap.exists() && snap.val()) {
+              setGiftCodes(parseGiftVal(snap.val()));
+            } else {
+              setGiftCodes([]);
+            }
+          })
+          .catch(() => {});
+      });
+
+      return () => {
+        active = false;
+        off(configGiftRef);
+      };
+    } catch (e) {}
   }, []);
 
   // Fetch OneSignal config and initialize client SDK
@@ -1778,6 +1852,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const sanitizeGiftCodeForFirebase = (gc: GiftCode): Record<string, any> => {
+    const clean: Record<string, any> = {};
+    Object.entries(gc).forEach(([key, val]) => {
+      if (val !== undefined) {
+        clean[key] = val;
+      }
+    });
+    return clean;
+  };
+
   const redeemGiftCode = (codeInput: string): { success: boolean; message: string; amount?: number } => {
     const cleanCode = codeInput.trim().toUpperCase();
     if (!cleanCode) {
@@ -1821,17 +1905,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Increment times claimed if dynamic
     if (foundCode) {
+      const updatedGc: GiftCode = {
+        ...foundCode,
+        timesClaimed: foundCode.timesClaimed + 1,
+        claimedBy: [...(foundCode.claimedBy || []), user.phone || user.id],
+      };
+
       setGiftCodes((prev) =>
-        prev.map((gc) =>
-          gc.id === foundCode.id
-            ? {
-                ...gc,
-                timesClaimed: gc.timesClaimed + 1,
-                claimedBy: [...(gc.claimedBy || []), user.phone || user.id],
-              }
-            : gc
-        )
+        prev.map((gc) => (gc.id === foundCode.id ? updatedGc : gc))
       );
+
+      try {
+        const cleanData = sanitizeGiftCodeForFirebase(updatedGc);
+        set(ref(rtdb, `config/gift_codes/${foundCode.id}`), cleanData).catch(() => {});
+        set(ref(rtdb, `gift_codes/${foundCode.id}`), cleanData).catch(() => {});
+      } catch (e) {}
     }
 
     setRedeemedCodes((prev) => [...prev, cleanCode]);
@@ -1862,6 +1950,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const createGiftCode = (codeData: Omit<GiftCode, 'id' | 'timesClaimed' | 'createdAt'>): GiftCode => {
+    try {
+      localStorage.setItem('aaley_gift_codes_seeded', 'true');
+    } catch (e) {}
+
     const newCode: GiftCode = {
       ...codeData,
       id: `gc-${Date.now()}`,
@@ -1869,6 +1961,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timesClaimed: 0,
       createdAt: Date.now(),
       active: true,
+      claimedBy: [],
     };
 
     setGiftCodes((prev) => {
@@ -1879,11 +1972,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
 
+    try {
+      const cleanData = sanitizeGiftCodeForFirebase(newCode);
+      set(ref(rtdb, `config/gift_codes/${newCode.id}`), cleanData).catch(() => {});
+      set(ref(rtdb, `gift_codes/${newCode.id}`), cleanData).catch(() => {});
+    } catch (e) {}
+
     showToast(`Gift code "${newCode.code}" (₹${newCode.rewardAmount}) created successfully!`);
     return newCode;
   };
 
+  const updateGiftCode = (updatedCode: GiftCode) => {
+    try {
+      localStorage.setItem('aaley_gift_codes_seeded', 'true');
+    } catch (e) {}
+
+    const formatted: GiftCode = {
+      ...updatedCode,
+      code: updatedCode.code.trim().toUpperCase(),
+    };
+
+    setGiftCodes((prev) => {
+      const updated = prev.map((gc) => (gc.id === formatted.id ? formatted : gc));
+      try {
+        localStorage.setItem('aaley_gift_codes', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    try {
+      const cleanData = sanitizeGiftCodeForFirebase(formatted);
+      set(ref(rtdb, `config/gift_codes/${formatted.id}`), cleanData).catch(() => {});
+      set(ref(rtdb, `gift_codes/${formatted.id}`), cleanData).catch(() => {});
+    } catch (e) {}
+
+    showToast(`Gift code "${formatted.code}" updated successfully!`);
+  };
+
   const deleteGiftCode = (id: string) => {
+    try {
+      localStorage.setItem('aaley_gift_codes_seeded', 'true');
+    } catch (e) {}
+
     setGiftCodes((prev) => {
       const updated = prev.filter((gc) => gc.id !== id);
       try {
@@ -1891,6 +2021,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (e) {}
       return updated;
     });
+
+    try {
+      set(ref(rtdb, `config/gift_codes/${id}`), null).catch(() => {});
+      set(ref(rtdb, `gift_codes/${id}`), null).catch(() => {});
+    } catch (e) {}
+
     showToast('Gift code removed successfully.');
   };
 
@@ -2370,6 +2506,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         spinLuckyDraw,
         redeemGiftCode,
         createGiftCode,
+        updateGiftCode,
         deleteGiftCode,
         claimMission,
         markNotificationRead,

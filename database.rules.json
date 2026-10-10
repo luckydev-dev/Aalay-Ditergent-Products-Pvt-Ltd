@@ -20,7 +20,16 @@
       "onesignal": {
         ".read": true,
         ".write": "auth != null || root.child('admins').child(auth.uid).val() === true"
+      },
+      "gift_codes": {
+        ".read": true,
+        ".write": true
       }
+    },
+
+    "gift_codes": {
+      ".read": true,
+      ".write": true
     },
 
     "plans": {

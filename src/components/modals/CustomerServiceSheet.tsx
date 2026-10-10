@@ -13,7 +13,7 @@ export const CustomerServiceSheet: React.FC = () => {
   };
 
   const handleJoinTelegram = () => {
-    window.open('https://t.me/aaley_official', '_blank');
+    window.open('https://t.me/aalay_official', '_blank');
     setShowCustomerService(false);
   };
 

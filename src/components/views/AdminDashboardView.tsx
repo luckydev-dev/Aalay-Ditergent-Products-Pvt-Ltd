@@ -55,7 +55,8 @@ import {
 import { useApp } from '../../context/AppContext';
 import { ProductImage } from '../common/ProductImage';
 import { rtdb, ref, get, onValue, off } from '../../firebase';
-import { UserRole, ProductPlan, RechargeRequest } from '../../types';
+import { UserRole, ProductPlan, RechargeRequest, GiftCode } from '../../types';
+import { calculateWalletMetrics } from '../../utils/wallet';
 
 interface SystemUserItem {
   uid: string;
@@ -99,6 +100,7 @@ export const AdminDashboardView: React.FC = () => {
     plans,
     giftCodes,
     createGiftCode,
+    updateGiftCode,
     deleteGiftCode,
     updatePlan,
     addNewPlan,
@@ -110,12 +112,13 @@ export const AdminDashboardView: React.FC = () => {
   } = useApp();
 
   // Navigation tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'recharges' | 'withdrawals' | 'products' | 'giftcodes' | 'broadcast' | 'settings' | 'audit'>('overview');
-  // Gift code creation form state
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'recharges' | 'withdrawals' | 'products' | 'giftcodes' | 'broadcast' | 'settings'>('overview');
+  // Gift code creation & editing form state
   const [newCodeName, setNewCodeName] = useState<string>('AALAY100');
   const [newCodeReward, setNewCodeReward] = useState<string>('100');
   const [newCodeMaxClaims, setNewCodeMaxClaims] = useState<string>('500');
   const [newCodeExpiry, setNewCodeExpiry] = useState<string>('');
+  const [editingGiftCode, setEditingGiftCode] = useState<GiftCode | null>(null);
 
   // Recharges management filter & modal state
   const [rechargeFilter, setRechargeFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
@@ -157,7 +160,7 @@ export const AdminDashboardView: React.FC = () => {
   
   // Filter & Search
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [roleFilter, setRoleFilter] = useState<'all' | 'user' | 'owner'>('all');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'user' | 'owner'>('user');
   const [withdrawalFilter, setWithdrawalFilter] = useState<'all' | 'pending' | 'completed' | 'rejected'>('all');
 
   // Broadcast state
@@ -622,7 +625,14 @@ export const AdminDashboardView: React.FC = () => {
   const totalUsersCount = usersList.length;
   const totalOwnersCount = usersList.filter((u) => u.role === 'owner').length;
   const totalSystemBalance = usersList.reduce((acc, u) => acc + (u.balance || 0), 0);
-  const totalRechargeSum = usersList.reduce((acc, u) => acc + (u.totalRecharge || 0), 0);
+  const totalRechargeSum = usersList.reduce((acc, u) => {
+    const { displayTotalRecharge } = calculateWalletMetrics(
+      u.balance || 0,
+      u.totalRecharge || 0,
+      u.totalIncome || 0
+    );
+    return acc + displayTotalRecharge;
+  }, 0);
   const pendingWithdrawals = withdrawalsList.filter((w) => w.status === 'pending');
   const totalPendingAmount = pendingWithdrawals.reduce((acc, w) => acc + (w.amount || 0), 0);
 
@@ -896,7 +906,7 @@ export const AdminDashboardView: React.FC = () => {
       setIsUnlockedDirectly(true);
       setUserRole('owner');
       setAuthError(null);
-      showToast('Owner access verified! Welcome to Aalay ERP Dashboard.');
+      showToast('Owner access verified! Welcome to Admin Panel.');
     } else {
       setAuthError('Invalid Owner Passcode. Please check your credentials.');
     }
@@ -919,20 +929,20 @@ export const AdminDashboardView: React.FC = () => {
           <div className="text-center mb-6">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 text-[10px] font-black uppercase tracking-wider mb-2">
               <ShieldAlert size={12} />
-              <span>Restricted System Gateway</span>
+              <span>Admin Security Portal</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              Aalay Industrial ERP
+              Admin Panel
             </h1>
             <p className="text-xs text-slate-400 mt-1.5">
-              Owner authentication required to access system management, financial ledgers, and user directory.
+              Enter admin passcode to access user accounts, deposits, withdrawals, and platform settings.
             </p>
           </div>
 
           <form onSubmit={handleMasterPassSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                Owner Security Passcode
+                Admin Security Passcode
               </label>
               <input
                 type="password"
@@ -954,7 +964,7 @@ export const AdminDashboardView: React.FC = () => {
               type="submit"
               className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-[0.99] text-amber-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 transition-all"
             >
-              Verify & Enter ERP Portal
+              Enter Admin Portal
             </button>
           </form>
 
@@ -976,47 +986,54 @@ export const AdminDashboardView: React.FC = () => {
     <div className="min-h-screen bg-[#041a0e] text-slate-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif] selection:bg-emerald-500 selection:text-black w-full max-w-full overflow-x-hidden relative">
       {/* Top Enterprise Bar */}
       <header className="sticky top-0 z-40 bg-[#03130a]/95 border-b border-emerald-950/80 backdrop-blur-md px-4 lg:px-8 py-3.5">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 sm:gap-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
           {/* Brand Identity & Hamburger Toggle */}
-          <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
             {/* Hamburger Button for Navigation Drawer & Sidebar */}
             <button
               type="button"
               onClick={() => setIsSidebarOpen((prev) => !prev)}
               className="p-2 sm:p-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700/90 text-amber-400 hover:text-amber-300 border border-slate-700/80 transition-all flex items-center justify-center cursor-pointer shadow-sm active:scale-95 shrink-0"
-              title="Toggle ERP Navigation Menu"
+              title="Toggle Navigation Menu"
               aria-label="Toggle navigation drawer"
             >
               {isSidebarOpen ? (
-                <X size={20} className="stroke-[2.5]" />
+                <X size={18} className="stroke-[2.5]" />
               ) : (
-                <Menu size={20} className="stroke-[2.5]" />
+                <Menu size={18} className="stroke-[2.5]" />
               )}
             </button>
 
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-amber-500/20 shrink-0">
-              <Factory size={22} className="stroke-[2.5]" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-slate-800/80 border border-amber-400/40 p-0.5 shadow-lg shrink-0 overflow-hidden">
+              <img
+                src={user.avatar || 'https://i.ibb.co/JWBdHWpv/profile-picture.png'}
+                alt="Admin Profile"
+                className="w-full h-full rounded-xl object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://i.ibb.co/JWBdHWpv/profile-picture.png';
+                }}
+              />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm sm:text-base font-black tracking-tight text-white uppercase">
-                  Aalay Industrial ERP
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-xs sm:text-base font-black tracking-tight text-white uppercase truncate">
+                  ADMIN PANEL
                 </span>
-                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-black tracking-wide">
-                  ENTERPRISE
+                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-black tracking-wide shrink-0">
+                  ADMIN
                 </span>
               </div>
-              <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium truncate max-w-[190px] sm:max-w-none">
-                Detergent Manufacturing Management Suite • {currentTime}
+              <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium truncate">
+                Management Panel • {currentTime}
               </p>
             </div>
           </div>
 
           {/* Right Action Lockup */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <button
               onClick={fetchAllSystemData}
-              className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/60 transition-all flex items-center gap-1.5 text-xs font-bold"
+              className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/60 transition-all flex items-center gap-1.5 text-xs font-bold shrink-0"
               title="Refresh System Data"
             >
               <RefreshCw size={14} className={isLoading ? 'animate-spin text-amber-400' : ''} />
@@ -1024,7 +1041,7 @@ export const AdminDashboardView: React.FC = () => {
             </button>
 
             {/* Current Admin Identity */}
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-800/60 border border-slate-700/60">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-800/60 border border-slate-700/60 shrink-0">
               <img
                 src={user.avatar || 'https://i.ibb.co/JWBdHWpv/profile-picture.png'}
                 alt={user.name}
@@ -1042,10 +1059,10 @@ export const AdminDashboardView: React.FC = () => {
             {/* Exit to Main App Button */}
             <button
               onClick={exitToMainApp}
-              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-600/80 text-xs font-black flex items-center gap-1.5 transition-all active:scale-95 shadow-sm"
+              className="px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-600/80 text-xs font-black flex items-center gap-1 sm:gap-1.5 transition-all active:scale-95 shadow-sm shrink-0"
             >
               <ArrowLeft size={14} />
-              <span>Exit to App</span>
+              <span className="text-[11px] sm:text-xs">Exit App</span>
             </button>
           </div>
         </div>
@@ -1066,12 +1083,19 @@ export const AdminDashboardView: React.FC = () => {
               {/* Drawer Top Header */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-slate-950 font-black shadow-md shadow-amber-500/20">
-                    <Factory size={20} className="stroke-[2.5]" />
+                  <div className="w-9 h-9 rounded-xl bg-slate-800/80 border border-amber-400/40 p-0.5 shadow-md overflow-hidden shrink-0">
+                    <img
+                      src={user.avatar || 'https://i.ibb.co/JWBdHWpv/profile-picture.png'}
+                      alt="Admin Profile"
+                      className="w-full h-full rounded-lg object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://i.ibb.co/JWBdHWpv/profile-picture.png';
+                      }}
+                    />
                   </div>
                   <div>
                     <span className="text-sm font-black text-white block uppercase leading-tight">
-                      Aalay ERP
+                      ADMIN PANEL
                     </span>
                     <span className="inline-flex items-center gap-1 text-[10px] text-amber-400 font-extrabold tracking-wider">
                       <Crown size={11} className="text-amber-400" />
@@ -1093,6 +1117,9 @@ export const AdminDashboardView: React.FC = () => {
                   src={user.avatar || 'https://i.ibb.co/JWBdHWpv/profile-picture.png'}
                   alt={user.name}
                   className="w-8 h-8 rounded-full object-cover border border-amber-400/50"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://i.ibb.co/JWBdHWpv/profile-picture.png';
+                  }}
                 />
                 <div className="text-left text-xs min-w-0 flex-1">
                   <span className="font-bold text-white block truncate">{user.name || 'Admin'}</span>
@@ -1100,10 +1127,10 @@ export const AdminDashboardView: React.FC = () => {
                 </div>
               </div>
 
-              {/* ERP Navigation Links */}
+              {/* Navigation Links */}
               <div>
                 <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
-                  ERP NAVIGATION
+                  NAVIGATION
                 </div>
                 <nav className="space-y-1">
                   <button
@@ -1137,14 +1164,14 @@ export const AdminDashboardView: React.FC = () => {
                   >
                     <div className="flex items-center gap-2.5">
                       <Users size={16} />
-                      <span>User Directory</span>
+                      <span>Users</span>
                     </div>
                     <span
                       className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
                         activeTab === 'users' ? 'bg-slate-950 text-white' : 'bg-slate-800 text-slate-300'
                       }`}
                     >
-                      {usersList.length}
+                      {usersList.filter((u) => u.role === 'user').length}
                     </span>
                   </button>
 
@@ -1205,7 +1232,7 @@ export const AdminDashboardView: React.FC = () => {
                   >
                     <div className="flex items-center gap-2.5">
                       <Package size={16} />
-                      <span>Factory Machinery</span>
+                      <span>Packages & Plans</span>
                     </div>
                     <span
                       className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
@@ -1276,24 +1303,6 @@ export const AdminDashboardView: React.FC = () => {
                     </div>
                     <Sliders size={14} className="opacity-60" />
                   </button>
-
-                  <button
-                    onClick={() => {
-                      setActiveTab('audit');
-                      setIsSidebarOpen(false);
-                    }}
-                    className={`w-full px-3.5 py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-between ${
-                      activeTab === 'audit'
-                        ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/10'
-                        : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <ShieldAlert size={16} />
-                      <span>Security & Audits</span>
-                    </div>
-                    <Check size={14} className="text-emerald-400" />
-                  </button>
                 </nav>
               </div>
             </div>
@@ -1324,126 +1333,13 @@ export const AdminDashboardView: React.FC = () => {
 
       {/* Main Workspace with Sidebar & Content */}
       <div className="flex-1 max-w-7xl w-full mx-auto flex flex-col md:flex-row gap-4 sm:gap-6 p-3 sm:p-6 lg:p-8 overflow-x-hidden">
-        {/* Mobile Horizontal ERP Navigation Bar (Visible only on mobile/tablet screens < md) */}
-        <div className="md:hidden flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 pt-0.5 -mx-1 px-1">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'overview'
-                ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
-                : 'bg-[#0b1730] text-slate-300 border border-slate-800'
-            }`}
-          >
-            <BarChart3 size={14} />
-            <span>Overview</span>
-          </button>
 
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'users'
-                ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
-                : 'bg-[#0b1730] text-slate-300 border border-slate-800'
-            }`}
-          >
-            <Users size={14} />
-            <span>Users</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-900/60 font-black">
-              {usersList.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('recharges')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'recharges'
-                ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
-                : 'bg-[#0b1730] text-slate-300 border border-slate-800'
-            }`}
-          >
-            <Wallet size={14} />
-            <span>UPI Deposits</span>
-            {pendingRecharges.length > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500 text-slate-950 font-black animate-pulse">
-                {pendingRecharges.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('withdrawals')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'withdrawals'
-                ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
-                : 'bg-[#0b1730] text-slate-300 border border-slate-800'
-            }`}
-          >
-            <CreditCard size={14} />
-            <span>Payouts</span>
-            {pendingWithdrawals.length > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-rose-500 text-white font-black animate-pulse">
-                {pendingWithdrawals.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('products')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'products'
-                ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
-                : 'bg-[#0b1730] text-slate-300 border border-slate-800'
-            }`}
-          >
-            <Package size={14} />
-            <span>Machines</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-900/60 font-black">
-              {plans.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('broadcast')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'broadcast'
-                ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
-                : 'bg-[#0b1730] text-slate-300 border border-slate-800'
-            }`}
-          >
-            <Bell size={14} />
-            <span>Notices</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'settings'
-                ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
-                : 'bg-[#0b1730] text-slate-300 border border-slate-800'
-            }`}
-          >
-            <Settings size={14} />
-            <span>Gateway & Push</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('audit')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'audit'
-                ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
-                : 'bg-[#0b1730] text-slate-300 border border-slate-800'
-            }`}
-          >
-            <ShieldAlert size={14} />
-            <span>Audit</span>
-          </button>
-        </div>
 
         {/* Navigation Sidebar (hidden on mobile to prevent clutter, shown on md screens) */}
         <aside className="hidden md:flex md:w-64 shrink-0 flex-col gap-2">
           <div className="bg-[#0b1730] border border-slate-800/80 rounded-3xl p-3 shadow-xl">
             <div className="px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-400">
-              ERP NAVIGATION
+              NAVIGATION
             </div>
 
             <nav className="space-y-1">
@@ -1472,12 +1368,12 @@ export const AdminDashboardView: React.FC = () => {
               >
                 <div className="flex items-center gap-2.5">
                   <Users size={16} />
-                  <span>User Directory</span>
+                  <span>Users</span>
                 </div>
                 <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
                   activeTab === 'users' ? 'bg-slate-950 text-white' : 'bg-slate-800 text-slate-300'
                 }`}>
-                  {usersList.length}
+                  {usersList.filter((u) => u.role === 'user').length}
                 </span>
               </button>
 
@@ -1510,7 +1406,7 @@ export const AdminDashboardView: React.FC = () => {
               >
                 <div className="flex items-center gap-2.5">
                   <Package size={16} />
-                  <span>Factory Machinery</span>
+                  <span>Packages & Plans</span>
                 </div>
                 <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
                   activeTab === 'products' ? 'bg-slate-950 text-white' : 'bg-slate-800 text-slate-300'
@@ -1568,21 +1464,6 @@ export const AdminDashboardView: React.FC = () => {
                 </div>
                 <Sliders size={14} className="opacity-60" />
               </button>
-
-              <button
-                onClick={() => setActiveTab('audit')}
-                className={`w-full px-3.5 py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-between ${
-                  activeTab === 'audit'
-                    ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/10'
-                    : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <ShieldAlert size={16} />
-                  <span>Security & Audits</span>
-                </div>
-                <Check size={14} className="text-emerald-400" />
-              </button>
             </nav>
           </div>
 
@@ -1590,10 +1471,10 @@ export const AdminDashboardView: React.FC = () => {
           <div className="bg-[#0b1730] border border-slate-800/80 rounded-3xl p-4 shadow-xl">
             <div className="flex items-center gap-2.5 mb-2">
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs font-extrabold text-white">System Status: Optimal</span>
+              <span className="text-xs font-extrabold text-white">System Status: Active</span>
             </div>
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              All machinery cycles and automated daily earnings processing normally.
+              All daily earnings and app services functioning normally.
             </p>
           </div>
         </aside>
@@ -1704,7 +1585,7 @@ export const AdminDashboardView: React.FC = () => {
                     onClick={() => setActiveTab('users')}
                     className="mt-4 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl self-start flex items-center gap-1.5 transition-all"
                   >
-                    <span>Open User Directory</span>
+                    <span>Open Users</span>
                     <ChevronRight size={14} />
                   </button>
                 </div>
@@ -1956,23 +1837,23 @@ export const AdminDashboardView: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
-                        <div>
+                      <div className="space-y-2 pt-2 border-t border-slate-800/60">
+                        <div className="flex items-center justify-between">
                           <span className="text-[10px] text-slate-400 uppercase font-bold block">Balance</span>
                           <span className="font-black text-sm text-emerald-400 font-mono">
                             ₹{u.balance.toLocaleString('en-IN')}
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-1.5">
+                        <div className="grid grid-cols-3 gap-1.5 pt-1">
                           <button
                             onClick={() => {
                               setSelectedUserForVip(u);
                               setVipLevelSelect(u.vipLevel || 'VIP 1');
                             }}
-                            className="px-2 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                            className="w-full py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
                           >
-                            <Crown size={12} className="text-amber-400" />
+                            <Crown size={11} className="text-amber-400 shrink-0" />
                             <span>Set VIP</span>
                           </button>
                           <button
@@ -1980,13 +1861,13 @@ export const AdminDashboardView: React.FC = () => {
                               setSelectedUserForBalance(u);
                               setAdjustAmountInput('500');
                             }}
-                            className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all cursor-pointer"
+                            className="w-full py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center"
                           >
                             Wallet
                           </button>
                           <button
                             onClick={() => handleRoleToggle(u)}
-                            className={`px-2.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                            className={`w-full py-1.5 rounded-xl text-[11px] font-black transition-all cursor-pointer flex items-center justify-center ${
                               u.role === 'owner'
                                 ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30'
                                 : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm'
@@ -2598,14 +2479,14 @@ export const AdminDashboardView: React.FC = () => {
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm sm:text-base font-black text-white">
-                        Aalay Soap Industrial Production Units
+                        Product Packages & Plans Catalog
                       </h3>
                       <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] sm:text-[11px] font-black border border-emerald-500/20">
-                        {plans.length} Units Active
+                        {plans.length} Plans Active
                       </span>
                     </div>
                     <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
-                      Live automated production machinery contracts, daily yields, investment cycles & pricing catalog.
+                      Manage investment plans, daily returns, cycle durations, and pricing.
                     </p>
                   </div>
 
@@ -2654,7 +2535,7 @@ export const AdminDashboardView: React.FC = () => {
                           : 'bg-slate-800/80 text-slate-400 hover:text-white'
                       }`}
                     >
-                      Industrial Lines ({plans.filter((p) => p.type === 'normal').length})
+                      Normal Plans ({plans.filter((p) => p.type === 'normal').length})
                     </button>
                     <button
                       type="button"
@@ -2666,7 +2547,7 @@ export const AdminDashboardView: React.FC = () => {
                       }`}
                     >
                       <Star size={12} className={productCategoryFilter === 'vip' ? 'fill-slate-950 text-slate-950' : 'fill-amber-400 text-amber-400'} />
-                      <span>VIP Machines ({plans.filter((p) => p.type === 'vip').length})</span>
+                      <span>VIP Plans ({plans.filter((p) => p.type === 'vip').length})</span>
                     </button>
                   </div>
 
@@ -2676,7 +2557,7 @@ export const AdminDashboardView: React.FC = () => {
                       type="text"
                       value={productSearch}
                       onChange={(e) => setProductSearch(e.target.value)}
-                      placeholder="Search machine or price..."
+                      placeholder="Search plan or price..."
                       className="w-full sm:w-56 pl-9 pr-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700/80 text-white placeholder-slate-500 text-xs font-medium focus:outline-none focus:border-amber-500"
                     />
                   </div>
@@ -2716,10 +2597,10 @@ export const AdminDashboardView: React.FC = () => {
                                   {p.type === 'vip' ? (
                                     <>
                                       <Star size={10} className="fill-amber-300 text-amber-300" />
-                                      <span>VIP Machine</span>
+                                      <span>VIP Plan</span>
                                     </>
                                   ) : (
-                                    'Industrial Line'
+                                    'Normal Plan'
                                   )}
                                 </span>
                                 {p.tag && (
@@ -2973,14 +2854,24 @@ export const AdminDashboardView: React.FC = () => {
                           </td>
 
                           <td className="py-3 px-3 text-right">
-                            <button
-                              type="button"
-                              onClick={() => deleteGiftCode(gc.id)}
-                              className="p-1.5 rounded-xl bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition-all cursor-pointer"
-                              title="Delete Gift Code"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setEditingGiftCode({ ...gc })}
+                                className="p-1.5 rounded-xl bg-slate-800 hover:bg-amber-900/40 text-slate-300 hover:text-amber-400 border border-slate-700/60 transition-all cursor-pointer"
+                                title="Edit Gift Code"
+                              >
+                                <Edit3 size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteGiftCode(gc.id)}
+                                className="p-1.5 rounded-xl bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition-all cursor-pointer"
+                                title="Delete Gift Code"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -2994,6 +2885,148 @@ export const AdminDashboardView: React.FC = () => {
                   )}
                 </div>
               </div>
+
+              {/* Edit Gift Code Modal */}
+              {editingGiftCode && (
+                <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+                  <div className="bg-[#0b1730] border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 relative">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20">
+                          <Gift size={18} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-white">Edit Gift Code</h4>
+                          <p className="text-[11px] text-slate-400 font-mono">{editingGiftCode.code}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditingGiftCode(null)}
+                        className="p-1.5 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-slate-800 cursor-pointer"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!editingGiftCode.code.trim()) {
+                          showToast('Gift code string cannot be empty');
+                          return;
+                        }
+                        if (editingGiftCode.rewardAmount <= 0) {
+                          showToast('Reward amount must be greater than 0');
+                          return;
+                        }
+                        updateGiftCode(editingGiftCode);
+                        setEditingGiftCode(null);
+                      }}
+                      className="space-y-3.5"
+                    >
+                      <div>
+                        <label className="block text-xs font-bold text-slate-300 mb-1">
+                          Gift Code String
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={editingGiftCode.code}
+                          onChange={(e) =>
+                            setEditingGiftCode({ ...editingGiftCode, code: e.target.value.toUpperCase() })
+                          }
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono font-bold focus:outline-none focus:border-amber-500 uppercase"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-300 mb-1">
+                            Reward Amount (₹)
+                          </label>
+                          <input
+                            type="number"
+                            required
+                            min="1"
+                            value={editingGiftCode.rewardAmount}
+                            onChange={(e) =>
+                              setEditingGiftCode({
+                                ...editingGiftCode,
+                                rewardAmount: Number(e.target.value) || 0,
+                              })
+                            }
+                            className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-amber-400 text-xs font-mono font-bold focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-300 mb-1">
+                            Max Claims <span className="text-slate-500 font-normal">(0=∞)</span>
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={editingGiftCode.maxClaims}
+                            onChange={(e) =>
+                              setEditingGiftCode({
+                                ...editingGiftCode,
+                                maxClaims: Number(e.target.value) || 0,
+                              })
+                            }
+                            className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-300 mb-1">
+                          Expiration Date
+                        </label>
+                        <input
+                          type="date"
+                          value={editingGiftCode.expiresAt || ''}
+                          onChange={(e) =>
+                            setEditingGiftCode({ ...editingGiftCode, expiresAt: e.target.value || undefined })
+                          }
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+                        <label className="text-xs font-bold text-slate-300 flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={editingGiftCode.active}
+                            onChange={(e) =>
+                              setEditingGiftCode({ ...editingGiftCode, active: e.target.checked })
+                            }
+                            className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-amber-500"
+                          />
+                          <span>Active Status</span>
+                        </label>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingGiftCode(null)}
+                          className="flex-1 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-all cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="flex-1 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/10"
+                        >
+                          <Save size={14} />
+                          <span>Save Changes</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -3314,57 +3347,7 @@ export const AdminDashboardView: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 7: SECURITY & AUDIT */}
-          {activeTab === 'audit' && (
-            <div className="space-y-4">
-              <div className="bg-[#0b1730] border border-slate-800/80 rounded-3xl p-6 shadow-xl max-w-2xl">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
-                    <ShieldAlert size={18} />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-black text-white">System Diagnostics & Security Audit</h3>
-                    <p className="text-xs text-slate-400">
-                      Export registry data and verify system health.
-                    </p>
-                  </div>
-                </div>
 
-                <div className="space-y-3">
-                  <div className="bg-slate-900 rounded-2xl p-4 border border-slate-800 flex items-center justify-between">
-                    <div>
-                      <div className="text-xs font-bold text-white">Export Users Database</div>
-                      <div className="text-[11px] text-slate-400">Download registered users list as JSON</div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        const dataStr = JSON.stringify(usersList, null, 2);
-                        const blob = new Blob([dataStr], { type: 'application/json' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `aaley_users_backup_${Date.now()}.json`;
-                        a.click();
-                        showToast('Database exported successfully!');
-                      }}
-                      className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all"
-                    >
-                      <Download size={14} />
-                      <span>Download JSON</span>
-                    </button>
-                  </div>
-
-                  <div className="bg-slate-900 rounded-2xl p-4 border border-slate-800">
-                    <div className="text-xs font-bold text-white mb-1">Administrative Privileges Active</div>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      Logged in as Owner account: <span className="text-amber-400 font-mono">+91 {user.phone}</span>.
-                      Full capability to modify user roles, approve bank payouts, and broadcast announcements.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </main>
       </div>
 
@@ -3503,12 +3486,12 @@ export const AdminDashboardView: React.FC = () => {
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-sm sm:text-base font-black text-white truncate">
-                    {isAddingNewProduct ? 'Add Industrial Product Unit' : `Edit: ${editingPlan.name}`}
+                    {isAddingNewProduct ? 'Add Product Package' : `Edit: ${editingPlan.name}`}
                   </h3>
                   <p className="text-[10px] sm:text-xs text-slate-400 truncate">
                     {isAddingNewProduct
-                      ? 'Configure pricing, returns, and launch a new factory unit contract'
-                      : 'Update live machine contract specifications, yield rate, and pricing'}
+                      ? 'Configure pricing, daily returns, and publish a new plan'
+                      : 'Update plan details, yield rate, and pricing'}
                   </p>
                 </div>
               </div>
@@ -3527,14 +3510,14 @@ export const AdminDashboardView: React.FC = () => {
                 {/* Product Name */}
                 <div>
                   <label className="block text-xs font-bold text-slate-300 mb-1">
-                    Product / Machine Unit Name
+                    Product Package Name
                   </label>
                   <input
                     type="text"
                     required
                     value={planForm.name}
                     onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })}
-                    placeholder="e.g. Aalay Active Wash Powder 1kg"
+                    placeholder="e.g. Aalay Active Wash Plan"
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800/90 border border-slate-700 text-white text-xs font-bold focus:outline-none focus:border-amber-500"
                   />
                 </div>
@@ -3543,7 +3526,7 @@ export const AdminDashboardView: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-300 mb-1">
-                      Contract Category
+                      Plan Category
                     </label>
                     <select
                       value={planForm.type}
@@ -3552,8 +3535,8 @@ export const AdminDashboardView: React.FC = () => {
                       }
                       className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800/90 border border-slate-700 text-white text-xs font-bold focus:outline-none focus:border-amber-500"
                     >
-                      <option value="normal">Standard Industrial Line (Normal)</option>
-                      <option value="vip">VIP Exclusive Machine Plan</option>
+                      <option value="normal">Standard Plan (Normal)</option>
+                      <option value="vip">VIP Exclusive Plan</option>
                     </select>
                   </div>
 

@@ -17,17 +17,17 @@ export const BottomNav: React.FC = () => {
         {/* 1. Home */}
         <button
           onClick={() => handleTabChange('home')}
-          className={`flex flex-col items-center justify-center flex-1 h-full transition-colors cursor-pointer ${
+          className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-200 cursor-pointer active:scale-95 ${
             activeTab === 'home' ? 'text-[#15803d]' : 'text-slate-400 hover:text-slate-600'
           }`}
         >
           <Home
             size={22}
-            className={`transition-transform duration-200 ${
-              activeTab === 'home' ? 'scale-110 stroke-[2.5px]' : 'stroke-[1.8px]'
+            className={`transition-all duration-200 ${
+              activeTab === 'home' ? 'scale-110 stroke-[2.5px] animate-micro-pop' : 'stroke-[1.8px] hover:scale-105'
             }`}
           />
-          <span className={`text-[10px] tracking-tight mt-1 ${
+          <span className={`text-[10px] tracking-tight mt-1 transition-all ${
             activeTab === 'home' ? 'font-bold text-[#15803d]' : 'font-medium'
           }`}>
             Home
@@ -37,17 +37,17 @@ export const BottomNav: React.FC = () => {
         {/* 2. Spin */}
         <button
           onClick={() => handleTabChange('spin')}
-          className={`flex flex-col items-center justify-center flex-1 h-full transition-colors cursor-pointer ${
+          className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-200 cursor-pointer active:scale-95 ${
             activeTab === 'spin' ? 'text-[#15803d]' : 'text-slate-400 hover:text-slate-600'
           }`}
         >
           <Gift
             size={22}
-            className={`transition-transform duration-200 ${
-              activeTab === 'spin' ? 'scale-110 stroke-[2.5px]' : 'stroke-[1.8px]'
+            className={`transition-all duration-200 ${
+              activeTab === 'spin' ? 'scale-110 stroke-[2.5px] animate-micro-pop' : 'stroke-[1.8px] hover:scale-105'
             }`}
           />
-          <span className={`text-[10px] tracking-tight mt-1 ${
+          <span className={`text-[10px] tracking-tight mt-1 transition-all ${
             activeTab === 'spin' ? 'font-bold text-[#15803d]' : 'font-medium'
           }`}>
             Spin
@@ -58,17 +58,17 @@ export const BottomNav: React.FC = () => {
         <div className="flex-1 flex flex-col items-center justify-center relative -top-3">
           <button
             onClick={() => handleTabChange('treasure')}
-            className={`w-13 h-13 rounded-full flex items-center justify-center transition-all duration-300 shadow-[0_6px_16px_rgba(22,163,74,0.4)] active:scale-95 cursor-pointer ${
+            className={`w-13 h-13 rounded-full flex items-center justify-center transition-all duration-200 shadow-[0_6px_16px_rgba(22,163,74,0.4)] active:scale-90 hover:scale-105 cursor-pointer ${
               activeTab === 'treasure'
-                ? 'bg-gradient-to-tr from-[#15803d] via-[#16a34a] to-[#22c55e] ring-4 ring-emerald-100 scale-105'
+                ? 'bg-gradient-to-tr from-[#15803d] via-[#16a34a] to-[#22c55e] ring-4 ring-emerald-100 scale-105 animate-micro-pop'
                 : 'bg-gradient-to-tr from-[#166534] via-[#15803d] to-[#16a34a] hover:brightness-105'
             }`}
             aria-label="Treasure Missions"
           >
-            <Zap size={24} className="text-white fill-white" />
+            <Zap size={24} className="text-white fill-white transition-transform duration-200" />
           </button>
           <span
-            className={`text-[10px] tracking-tight mt-0.5 ${
+            className={`text-[10px] tracking-tight mt-0.5 transition-all ${
               activeTab === 'treasure' ? 'font-bold text-[#15803d]' : 'font-medium text-slate-500'
             }`}
           >
@@ -79,17 +79,17 @@ export const BottomNav: React.FC = () => {
         {/* 4. Team */}
         <button
           onClick={() => handleTabChange('team')}
-          className={`flex flex-col items-center justify-center flex-1 h-full transition-colors cursor-pointer ${
+          className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-200 cursor-pointer active:scale-95 ${
             activeTab === 'team' ? 'text-[#15803d]' : 'text-slate-400 hover:text-slate-600'
           }`}
         >
           <Users
             size={22}
-            className={`transition-transform duration-200 ${
-              activeTab === 'team' ? 'scale-110 stroke-[2.5px]' : 'stroke-[1.8px]'
+            className={`transition-all duration-200 ${
+              activeTab === 'team' ? 'scale-110 stroke-[2.5px] animate-micro-pop' : 'stroke-[1.8px] hover:scale-105'
             }`}
           />
-          <span className={`text-[10px] tracking-tight mt-1 ${
+          <span className={`text-[10px] tracking-tight mt-1 transition-all ${
             activeTab === 'team' ? 'font-bold text-[#15803d]' : 'font-medium'
           }`}>
             Team
@@ -99,17 +99,17 @@ export const BottomNav: React.FC = () => {
         {/* 5. Profile */}
         <button
           onClick={() => handleTabChange('profile')}
-          className={`flex flex-col items-center justify-center flex-1 h-full transition-colors cursor-pointer ${
+          className={`flex flex-col items-center justify-center flex-1 h-full transition-all duration-200 cursor-pointer active:scale-95 ${
             activeTab === 'profile' ? 'text-[#15803d]' : 'text-slate-400 hover:text-slate-600'
           }`}
         >
           <User
             size={22}
-            className={`transition-transform duration-200 ${
-              activeTab === 'profile' ? 'scale-110 stroke-[2.5px]' : 'stroke-[1.8px]'
+            className={`transition-all duration-200 ${
+              activeTab === 'profile' ? 'scale-110 stroke-[2.5px] animate-micro-pop' : 'stroke-[1.8px] hover:scale-105'
             }`}
           />
-          <span className={`text-[10px] tracking-tight mt-1 ${
+          <span className={`text-[10px] tracking-tight mt-1 transition-all ${
             activeTab === 'profile' ? 'font-bold text-[#15803d]' : 'font-medium'
           }`}>
             Profile

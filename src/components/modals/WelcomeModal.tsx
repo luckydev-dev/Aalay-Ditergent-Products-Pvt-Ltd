@@ -8,7 +8,7 @@ export const WelcomeModal: React.FC = () => {
   if (!showWelcomeModal) return null;
 
   const handleJoinTelegram = () => {
-    window.open('https://t.me/aaley_official', '_blank');
+    window.open('https://t.me/aalay_official', '_blank');
     setShowWelcomeModal(false);
   };
 

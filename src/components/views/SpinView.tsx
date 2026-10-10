@@ -38,14 +38,12 @@ const PERIMETER_CELLS = [
 ];
 
 const WINNERS_FEED = [
-  '881****10 won ₹5',
-  '800****95 won ₹5',
-  '799****79 won ₹5',
-  '986****50 won ₹10',
-  '836****12 won ₹15',
-  '951****97 won ₹50',
-  '912****43 won ₹5',
-  '974****81 won ₹500',
+  { phone: '986****50', amount: '₹1000', time: 'Just now', avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png' },
+  { phone: '881****10', amount: '₹5000', time: '2 mins ago', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80' },
+  { phone: '951****97', amount: '₹2000', time: '4 mins ago', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80' },
+  { phone: '800****95', amount: '₹1000', time: '7 mins ago', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80' },
+  { phone: '974****81', amount: '₹500', time: '10 mins ago', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=80' },
+  { phone: '836****12', amount: '₹3000', time: '14 mins ago', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&auto=format&fit=crop&q=80' },
 ];
 
 export const SpinView: React.FC = () => {
@@ -101,14 +99,17 @@ export const SpinView: React.FC = () => {
     setIsSpinning(true);
     setWinModalData(null);
 
-    // Pick target prize (favoring realistic wins like ₹5, ₹10, ₹15, ₹50)
+    // Strict odds: Big rewards (₹500, ₹1000, ₹5000) have 0.1% to 0.9% total probability
     const roll = Math.random();
-    let targetId = 0; // ₹5
-    if (roll < 0.45) targetId = 0; // ₹5
-    else if (roll < 0.70) targetId = 1; // ₹10
-    else if (roll < 0.85) targetId = 2; // ₹15
-    else if (roll < 0.95) targetId = 7; // ₹50
-    else targetId = 3; // ₹500
+    let targetId = 0; // ₹5 default
+    if (roll < 0.40) targetId = 0;        // ₹5   (40% chance)
+    else if (roll < 0.70) targetId = 1;   // ₹10  (30% chance)
+    else if (roll < 0.85) targetId = 2;   // ₹15  (15% chance)
+    else if (roll < 0.95) targetId = 7;   // ₹50  (10% chance)
+    else if (roll < 0.991) targetId = 5;  // Sorry (4.1% chance)
+    else if (roll < 0.996) targetId = 3;  // ₹500  (0.5% chance - BIG REWARD)
+    else if (roll < 0.999) targetId = 6;  // ₹1000 (0.3% chance - BIG REWARD)
+    else targetId = 4;                    // ₹5000 (0.1% chance - MEGA REWARD)
 
     let current = activeCellIndex ?? 0;
     const totalSteps = 24 + targetId; // 3 full cycles + offset
@@ -208,6 +209,8 @@ export const SpinView: React.FC = () => {
     );
   };
 
+  const currentWinner = WINNERS_FEED[marqueeIndex];
+
   return (
     <div className="min-h-screen pb-24 pt-2 px-3 sm:px-4 bg-gradient-to-b from-[#063b1b] via-[#14532d] to-[#032210] text-white max-w-md mx-auto relative overflow-hidden">
       {/* Subtle green ambient blur glows */}
@@ -224,15 +227,20 @@ export const SpinView: React.FC = () => {
         </div>
       </div>
 
-      {/* Live Winners Ticker */}
-      <div className="bg-black/25 backdrop-blur-xs rounded-full px-3.5 py-1.5 mb-4 flex items-center gap-2 border border-white/10 text-xs relative z-10">
-        <Megaphone size={14} className="text-amber-300 shrink-0" />
-        <div className="overflow-hidden flex-1 whitespace-nowrap">
-          <span className="text-emerald-100 font-semibold transition-opacity duration-300">
-            {WINNERS_FEED[marqueeIndex]} &nbsp;·&nbsp; {WINNERS_FEED[(marqueeIndex + 1) % WINNERS_FEED.length]}
-          </span>
+      {/* Live Winner Ticker Pill (Original Oldest Design) */}
+      <div className="bg-white/10 backdrop-blur-md rounded-full px-4 py-2.5 mb-4 border border-white/20 flex items-center justify-between gap-2 text-xs text-white shadow-md relative z-10">
+        <div className="flex items-center gap-2 min-w-0">
+          <Megaphone size={16} className="text-amber-300 shrink-0 animate-pulse" />
+          <div className="truncate text-xs font-medium">
+            User <span className="font-bold text-amber-300">{currentWinner.phone}</span> won{' '}
+            <span className="font-bold text-emerald-300 font-mono">{currentWinner.amount}</span> in Lucky Wheel
+          </div>
         </div>
+        <span className="text-[10px] text-emerald-200/80 shrink-0 font-medium">
+          {currentWinner.time}
+        </span>
       </div>
+
 
       {/* 3x3 Spin Grid Card */}
       <div className="bg-[#042d15]/90 rounded-3xl p-3.5 sm:p-4 border border-emerald-400/25 shadow-2xl mb-4 relative z-10 backdrop-blur-xs">
@@ -345,7 +353,7 @@ export const SpinView: React.FC = () => {
         {/* Hint to join telegram for codes */}
         <div className="text-center">
           <a
-            href="https://t.me/aaley_official"
+            href="https://t.me/aalay_official"
             target="_blank"
             rel="noreferrer"
             className="text-xs text-emerald-200/90 hover:text-white transition-colors underline"

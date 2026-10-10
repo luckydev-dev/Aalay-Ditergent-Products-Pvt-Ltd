@@ -23,11 +23,18 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { calculateWalletMetrics } from '../../utils/wallet';
 
 export const ProfileView: React.FC = () => {
-  const { user, logout, setSubScreen, setActiveTab, showToast } = useApp();
+  const { user, logout, setSubScreen, setActiveTab, showToast, transactions } = useApp();
   const [copiedId, setCopiedId] = React.useState(false);
   const [copiedCode, setCopiedCode] = React.useState(false);
+
+  const { displayTotalRecharge, displayTotalIncome } = calculateWalletMetrics(
+    user.balance,
+    user.totalRecharge,
+    user.totalIncome
+  );
 
   const displayId = user.id || (user.phone ? user.phone.slice(-6) : '9516797');
 
@@ -191,7 +198,7 @@ export const ProfileView: React.FC = () => {
                 TOTAL RECHARGE
               </div>
               <div className="text-base font-extrabold text-slate-900 mt-0.5">
-                ₹{user.totalRecharge.toLocaleString('en-IN')}
+                ₹{displayTotalRecharge.toLocaleString('en-IN')}
               </div>
             </div>
 
@@ -199,8 +206,8 @@ export const ProfileView: React.FC = () => {
               <div className="text-[10px] font-bold uppercase text-slate-400">
                 TOTAL INCOME
               </div>
-              <div className="text-base font-extrabold text-slate-900 mt-0.5">
-                ₹{user.totalIncome.toLocaleString('en-IN')}
+              <div className="text-base font-extrabold text-emerald-600 mt-0.5">
+                ₹{displayTotalIncome.toLocaleString('en-IN')}
               </div>
             </div>
           </div>

@@ -61,7 +61,7 @@ export const AboutUsView: React.FC = () => {
             </p>
 
             <a
-              href="https://t.me/aaley_official"
+              href="https://t.me/aalay_official"
               target="_blank"
               rel="noreferrer"
               className="w-full py-3.5 rounded-2xl bg-[#15803d] hover:bg-[#166534] active:scale-[0.98] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-900/20 transition-all cursor-pointer"

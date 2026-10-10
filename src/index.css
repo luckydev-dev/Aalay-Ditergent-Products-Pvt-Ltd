@@ -34,6 +34,29 @@ html, body {
 }
 
 /* Global Animations & Transitions */
+@keyframes microPop {
+  0% {
+    transform: scale(0.92);
+  }
+  60% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes microFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -48,7 +71,7 @@ html, body {
 @keyframes scaleUp {
   from {
     opacity: 0;
-    transform: scale(0.96);
+    transform: scale(0.97);
   }
   to {
     opacity: 1;
@@ -74,51 +97,24 @@ html, body {
   }
 }
 
-@keyframes pulseGlow {
-  0%, 100% {
-    box-shadow: 0 0 15px rgba(245, 158, 11, 0.2);
-  }
-  50% {
-    box-shadow: 0 0 25px rgba(245, 158, 11, 0.45);
-  }
+.animate-micro-pop {
+  animation: microPop 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes floatGentle {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-4px);
-  }
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
+.animate-micro-fade {
+  animation: microFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-scale-up {
-  animation: scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-slide-left {
-  animation: slideInLeft 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.animate-pulse-glow {
-  animation: pulseGlow 2.5s infinite ease-in-out;
-}
-
-.animate-float {
-  animation: floatGentle 3s ease-in-out infinite;
+  animation: slideInLeft 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* Interactive hover and tap card transitions across the entire app */
@@ -142,5 +138,6 @@ button, a {
 button:active, a:active {
   transform: scale(0.97);
 }
+
 
 

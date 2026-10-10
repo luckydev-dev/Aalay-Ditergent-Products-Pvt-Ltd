@@ -56,6 +56,29 @@ export async function initOneSignal(appId: string): Promise<boolean> {
 export async function requestOneSignalPushPermission(): Promise<boolean> {
   if (typeof window === 'undefined') return false;
 
+  // 1. Trigger browser native notification prompt immediately on user click gesture
+  if ('Notification' in window) {
+    try {
+      const nativePerm = await Notification.requestPermission();
+      if (nativePerm === 'granted') {
+        // Also sync with OneSignal if initialized
+        if (window.OneSignal?.Notifications?.requestPermission) {
+          try {
+            await window.OneSignal.Notifications.requestPermission();
+          } catch (e) {
+            // Ignore
+          }
+        }
+        return true;
+      } else if (nativePerm === 'denied') {
+        return false;
+      }
+    } catch (e) {
+      console.warn('[Push] Native Notification.requestPermission error:', e);
+    }
+  }
+
+  // 2. Fallback to OneSignal deferred handler
   return new Promise((resolve) => {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(async (OneSignal: any) => {
