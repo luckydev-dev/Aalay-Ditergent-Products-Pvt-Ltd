@@ -46,9 +46,9 @@ export const PidiliteLogo: React.FC<PidiliteLogoProps> = ({
             {/* Concentric spiral radial gradient */}
             <radialGradient id="swirlGrad" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
               <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="35%" stopColor="#B2E500" />
-              <stop offset="70%" stopColor="#8ED000" />
-              <stop offset="100%" stopColor="#79B500" />
+              <stop offset="30%" stopColor="#B2E500" />
+              <stop offset="65%" stopColor="#8ED000" />
+              <stop offset="100%" stopColor="#15803d" />
             </radialGradient>
           </defs>
           
@@ -65,7 +65,9 @@ export const PidiliteLogo: React.FC<PidiliteLogoProps> = ({
       <div className="flex flex-col justify-center leading-none">
         {showTagline && (
           <span 
-            className={`${kickerSizes[size]} font-extrabold uppercase tracking-widest text-[#17145F] mb-0.5`}
+            className={`${kickerSizes[size]} font-extrabold uppercase tracking-widest ${
+              light ? 'text-[#B2E500]' : 'text-[#15803d]'
+            } mb-0.5`}
             style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
           >
             DETERGENT CAKE · WASHING POWDER
@@ -73,7 +75,7 @@ export const PidiliteLogo: React.FC<PidiliteLogoProps> = ({
         )}
         <span
           className={`${wordmarkSizes[size]} ${
-            light ? 'text-white' : 'text-[#25208F]'
+            light ? 'text-white' : 'text-[#0a3d1b]'
           } flex items-center font-black`}
           style={{ 
             letterSpacing: '-0.02em', 

@@ -28,7 +28,7 @@ export const WithdrawalHistoryView: React.FC = () => {
         {/* Top 2 Summary Cards */}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-white rounded-3xl p-4 shadow-[0_2px_14px_rgba(0,0,0,0.04)] border border-slate-100">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center mb-2">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center mb-2">
               <TrendingUp size={20} />
             </div>
             <div className="text-2xl font-black text-slate-900 leading-none">
@@ -40,10 +40,10 @@ export const WithdrawalHistoryView: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-3xl p-4 shadow-[0_2px_14px_rgba(0,0,0,0.04)] border border-slate-100">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center mb-2">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center mb-2">
               <IndianRupee size={20} />
             </div>
-            <div className="text-2xl font-black text-[#0047B3] leading-none">
+            <div className="text-2xl font-black text-[#15803d] leading-none">
               ₹{totalAmount.toLocaleString('en-IN')}
             </div>
             <div className="text-[11px] font-bold text-slate-400 mt-1">
@@ -58,9 +58,9 @@ export const WithdrawalHistoryView: React.FC = () => {
             <button
               key={tab}
               onClick={() => setFilter(tab)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 filter === tab
-                  ? 'bg-[#0047B3] text-white shadow-sm'
+                  ? 'bg-[#15803d] text-white shadow-sm'
                   : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
               }`}
             >
@@ -72,7 +72,7 @@ export const WithdrawalHistoryView: React.FC = () => {
         {/* Records List or Empty State */}
         {filtered.length === 0 ? (
           <div className="bg-white rounded-3xl p-12 text-center shadow-[0_2px_14px_rgba(0,0,0,0.04)] border border-slate-100 my-10">
-            <div className="w-16 h-16 rounded-full bg-blue-50/70 text-[#0047B3]/40 flex items-center justify-center mx-auto mb-3">
+            <div className="w-16 h-16 rounded-full bg-emerald-50/70 text-[#15803d]/40 flex items-center justify-center mx-auto mb-3">
               <RotateCcw size={32} />
             </div>
             <h4 className="text-sm font-bold text-slate-400">

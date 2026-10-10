@@ -45,6 +45,11 @@ import {
   Wallet,
   FileCheck,
   Eye,
+  Settings,
+  ToggleLeft,
+  ToggleRight,
+  Radio,
+  EyeOff,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ProductImage } from '../common/ProductImage';
@@ -100,7 +105,7 @@ export const AdminDashboardView: React.FC = () => {
   } = useApp();
 
   // Navigation tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'recharges' | 'withdrawals' | 'products' | 'broadcast' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'recharges' | 'withdrawals' | 'products' | 'broadcast' | 'settings' | 'audit'>('overview');
   // Recharges management filter & modal state
   const [rechargeFilter, setRechargeFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [rechargeSearch, setRechargeSearch] = useState<string>('');
@@ -164,9 +169,21 @@ export const AdminDashboardView: React.FC = () => {
   const [rupayexBalance, setRupayexBalance] = useState<number | null>(null);
   const [isLoadingRupayexBalance, setIsLoadingRupayexBalance] = useState<boolean>(false);
   const [isTokenModalOpen, setIsTokenModalOpen] = useState<boolean>(false);
-  const [rupayexTokenInput, setRupayexTokenInput] = useState<string>('c0bfc67f130d640a0f7f9737de2f9af6');
+  const [rupayexTokenInput, setRupayexTokenInput] = useState<string>('');
   const [maskedRupayexToken, setMaskedRupayexToken] = useState<string>('');
+  const [isGatewayEnabled, setIsGatewayEnabled] = useState<boolean>(true);
   const [isProcessingPayoutId, setIsProcessingPayoutId] = useState<string | null>(null);
+  const [showRawToken, setShowRawToken] = useState<boolean>(false);
+  const [rawTokenValue, setRawTokenValue] = useState<string>('');
+
+  // OneSignal Push Notification configuration states
+  const [onesignalAppIdInput, setOnesignalAppIdInput] = useState<string>('');
+  const [onesignalRestApiKeyInput, setOnesignalRestApiKeyInput] = useState<string>('');
+  const [savedOnesignalAppId, setSavedOnesignalAppId] = useState<string>('');
+  const [hasOnesignalRestApiKey, setHasOnesignalRestApiKey] = useState<boolean>(false);
+  const [testPushTitle, setTestPushTitle] = useState<string>('AALAY Bonus Alert!');
+  const [testPushMessage, setTestPushMessage] = useState<string>('Your daily machinery return has been credited to your wallet balance.');
+  const [isSendingTestPush, setIsSendingTestPush] = useState<boolean>(false);
 
   // Master Access Passcode state (for unauthenticated or non-owner direct /admin visits)
   const [masterPassInput, setMasterPassInput] = useState<string>('');
@@ -186,7 +203,9 @@ export const AdminDashboardView: React.FC = () => {
   const fetchRupayexBalance = async () => {
     setIsLoadingRupayexBalance(true);
     try {
-      const res = await fetch('/api/rupayex/wallet-balance');
+      const res = await fetch('/api/rupayex/wallet-balance', {
+        headers: { 'x-admin-key': 'aalay_admin_secure_key_2026' },
+      });
       if (res.ok) {
         const data = await res.json();
         if (data && (data.status === true || typeof data.balance === 'number')) {
@@ -205,9 +224,26 @@ export const AdminDashboardView: React.FC = () => {
       const res = await fetch('/api/rupayex/config');
       if (res.ok) {
         const data = await res.json();
-        if (data && data.token) {
-          setRupayexTokenInput(data.token);
-          setMaskedRupayexToken(data.tokenMasked || data.token);
+        if (data) {
+          if (data.tokenMasked) setMaskedRupayexToken(data.tokenMasked);
+          if (data.token) setRawTokenValue(data.token);
+          if (typeof data.enabled === 'boolean') setIsGatewayEnabled(data.enabled);
+        }
+      }
+    } catch (e) {}
+  };
+
+  const fetchOneSignalConfig = async () => {
+    try {
+      const res = await fetch('/api/onesignal/config');
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+          if (data.appId) {
+            setSavedOnesignalAppId(data.appId);
+            setOnesignalAppIdInput(data.appId);
+          }
+          if (data.hasRestApiKey) setHasOnesignalRestApiKey(true);
         }
       }
     } catch (e) {}
@@ -216,24 +252,51 @@ export const AdminDashboardView: React.FC = () => {
   useEffect(() => {
     fetchRupayexBalance();
     fetchRupayexConfig();
+    fetchOneSignalConfig();
   }, []);
 
-  const handleSaveRupayexToken = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!rupayexTokenInput.trim()) {
-      showToast('Please enter a valid token');
+  const handleToggleGatewayStatus = async () => {
+    const newStatus = !isGatewayEnabled;
+    try {
+      const res = await fetch('/api/rupayex/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': 'aalay_admin_secure_key_2026',
+        },
+        body: JSON.stringify({ enabled: newStatus }),
+      });
+      const data = await res.json();
+      if (res.ok && data.status) {
+        setIsGatewayEnabled(newStatus);
+        showToast(newStatus ? 'Rupayex Payment Gateway ENABLED' : 'Rupayex Gateway DISABLED (Maintenance mode)');
+      }
+    } catch (err: any) {
+      showToast(`Error toggling gateway: ${err.message}`);
+    }
+  };
+
+  const handleSaveRupayexToken = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const tokenToSave = rupayexTokenInput.trim() || rawTokenValue.trim();
+    if (!tokenToSave) {
+      showToast('Please enter a valid API token');
       return;
     }
     try {
       const res = await fetch('/api/rupayex/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: rupayexTokenInput.trim() }),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': 'aalay_admin_secure_key_2026',
+        },
+        body: JSON.stringify({ token: tokenToSave }),
       });
       const data = await res.json();
       if (res.ok && data.status) {
         showToast('Rupayex API Token updated successfully!');
         setIsTokenModalOpen(false);
+        setRupayexTokenInput('');
         fetchRupayexConfig();
         fetchRupayexBalance();
       } else {
@@ -241,6 +304,75 @@ export const AdminDashboardView: React.FC = () => {
       }
     } catch (err: any) {
       showToast(`Error: ${err.message}`);
+    }
+  };
+
+  const handleSaveOneSignalSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onesignalAppIdInput.trim()) {
+      showToast('Please enter your OneSignal App ID');
+      return;
+    }
+    try {
+      const res = await fetch('/api/onesignal/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': 'aalay_admin_secure_key_2026',
+        },
+        body: JSON.stringify({
+          appId: onesignalAppIdInput.trim(),
+          restApiKey: onesignalRestApiKeyInput.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.status) {
+        showToast('OneSignal configuration saved successfully!');
+        setSavedOnesignalAppId(data.appId);
+        if (onesignalRestApiKeyInput.trim()) setHasOnesignalRestApiKey(true);
+        setOnesignalRestApiKeyInput('');
+        
+        // Re-initialize client SDK
+        import('../../services/onesignal').then(({ initOneSignal }) => {
+          initOneSignal(data.appId);
+        });
+      } else {
+        showToast(data.error || 'Failed to save OneSignal config');
+      }
+    } catch (err: any) {
+      showToast(`Error: ${err.message}`);
+    }
+  };
+
+  const handleDispatchPushTest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testPushTitle.trim() || !testPushMessage.trim()) {
+      showToast('Please provide both notification title and message');
+      return;
+    }
+    setIsSendingTestPush(true);
+    try {
+      const res = await fetch('/api/onesignal/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': 'aalay_admin_secure_key_2026',
+        },
+        body: JSON.stringify({
+          title: testPushTitle.trim(),
+          message: testPushMessage.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.status) {
+        showToast('Push notification broadcasted successfully!');
+      } else {
+        showToast(data.error || 'Push broadcast failed');
+      }
+    } catch (err: any) {
+      showToast(`Error: ${err.message}`);
+    } finally {
+      setIsSendingTestPush(false);
     }
   };
 
@@ -540,7 +672,10 @@ export const AdminDashboardView: React.FC = () => {
     try {
       const payoutRes = await fetch('/api/rupayex/create-payout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': 'aalay_admin_secure_key_2026',
+        },
         body: JSON.stringify({
           amount: item.amount,
           method: item.bankAccount ? 'bank' : 'upi',
@@ -790,9 +925,9 @@ export const AdminDashboardView: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#071329] text-slate-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif] selection:bg-amber-500 selection:text-black w-full max-w-full overflow-x-hidden relative">
+    <div className="min-h-screen bg-[#041a0e] text-slate-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif] selection:bg-emerald-500 selection:text-black w-full max-w-full overflow-x-hidden relative">
       {/* Top Enterprise Bar */}
-      <header className="sticky top-0 z-40 bg-[#061022]/95 border-b border-slate-800/80 backdrop-blur-md px-4 lg:px-8 py-3.5">
+      <header className="sticky top-0 z-40 bg-[#03130a]/95 border-b border-emerald-950/80 backdrop-blur-md px-4 lg:px-8 py-3.5">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 sm:gap-4">
           {/* Brand Identity & Hamburger Toggle */}
           <div className="flex items-center gap-2.5 sm:gap-3">
@@ -1053,6 +1188,24 @@ export const AdminDashboardView: React.FC = () => {
 
                   <button
                     onClick={() => {
+                      setActiveTab('settings');
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`w-full px-3.5 py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-between ${
+                      activeTab === 'settings'
+                        ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/10'
+                        : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Settings size={16} />
+                      <span>Gateway & Push</span>
+                    </div>
+                    <Sliders size={14} className="opacity-60" />
+                  </button>
+
+                  <button
+                    onClick={() => {
                       setActiveTab('audit');
                       setIsSidebarOpen(false);
                     }}
@@ -1189,6 +1342,18 @@ export const AdminDashboardView: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveTab('settings')}
+            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'settings'
+                ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20'
+                : 'bg-[#0b1730] text-slate-300 border border-slate-800'
+            }`}
+          >
+            <Settings size={14} />
+            <span>Gateway & Push</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('audit')}
             className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
               activeTab === 'audit'
@@ -1294,6 +1459,21 @@ export const AdminDashboardView: React.FC = () => {
                   <span>Announcements</span>
                 </div>
                 <Send size={14} className="opacity-60" />
+              </button>
+
+              <button
+                onClick={() => setActiveTab('settings')}
+                className={`w-full px-3.5 py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-between ${
+                  activeTab === 'settings'
+                    ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/10'
+                    : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Settings size={16} />
+                  <span>Gateway & Push</span>
+                </div>
+                <Sliders size={14} className="opacity-60" />
               </button>
 
               <button
@@ -2568,7 +2748,258 @@ export const AdminDashboardView: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 6: SECURITY & AUDIT */}
+          {/* TAB 6: PAYMENT GATEWAY & ONESIGNAL CONFIGURATION */}
+          {activeTab === 'settings' && (
+            <div className="space-y-6 max-w-4xl">
+              {/* Header Card */}
+              <div className="bg-[#0b1730] border border-slate-800/80 rounded-3xl p-5 sm:p-6 shadow-xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/20">
+                      <Settings size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-white">Payment Gateway & Notification Settings</h3>
+                      <p className="text-xs text-slate-400">
+                        Configure live Rupayex API tokens, gateway maintenance toggle, and OneSignal push credentials.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        fetchRupayexConfig();
+                        fetchRupayexBalance();
+                        fetchOneSignalConfig();
+                        showToast('Configuration refreshed from server');
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <RefreshCw size={13} />
+                      <span>Refresh</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid with 2 Main Cards: Rupayex Gateway & OneSignal Push */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* 1. Rupayex Payment Gateway Hub */}
+                <div className="bg-[#0b1730] border border-slate-800/80 rounded-3xl p-5 sm:p-6 shadow-xl flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800/80">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-black text-xs">
+                          ₹
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-white">Rupayex Gateway</h4>
+                          <span className="text-[10px] text-slate-400 font-mono">https://rupayex.net/api</span>
+                        </div>
+                      </div>
+
+                      {/* Gateway Enable / Disable Switch */}
+                      <button
+                        type="button"
+                        onClick={handleToggleGatewayStatus}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all border cursor-pointer ${
+                          isGatewayEnabled
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                            : 'bg-rose-500/10 text-rose-400 border-rose-500/30 hover:bg-rose-500/20'
+                        }`}
+                      >
+                        {isGatewayEnabled ? (
+                          <>
+                            <ToggleRight size={16} className="text-emerald-400" />
+                            <span>ACTIVE</span>
+                          </>
+                        ) : (
+                          <>
+                            <ToggleLeft size={16} className="text-rose-400" />
+                            <span>DISABLED</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Live Balance pill */}
+                    <div className="bg-slate-900/90 rounded-2xl p-4 border border-slate-800 mb-4">
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-slate-400 font-medium">Gateway Wallet Balance</span>
+                        <button
+                          type="button"
+                          onClick={fetchRupayexBalance}
+                          className="text-[10px] text-amber-400 font-bold hover:underline flex items-center gap-1"
+                        >
+                          <RefreshCw size={10} className={isLoadingRupayexBalance ? 'animate-spin' : ''} />
+                          Check Live
+                        </button>
+                      </div>
+                      <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono">
+                        {isLoadingRupayexBalance ? (
+                          <span className="text-sm text-slate-500">Checking balance...</span>
+                        ) : rupayexBalance !== null ? (
+                          `₹${rupayexBalance.toLocaleString('en-IN')}`
+                        ) : (
+                          <span className="text-sm text-slate-500">Unavailable / Token setup required</span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Utilized for instant automated payout claims directly to user bank accounts.
+                      </p>
+                    </div>
+
+                    {/* API Token Editor */}
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex items-center justify-between text-xs font-bold text-slate-300 mb-1.5">
+                          <span>Rupayex User Token</span>
+                          <button
+                            type="button"
+                            onClick={() => setShowRawToken(!showRawToken)}
+                            className="text-[10px] text-amber-400 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            {showRawToken ? <EyeOff size={11} /> : <Eye size={11} />}
+                            {showRawToken ? 'Hide' : 'Show Token'}
+                          </button>
+                        </div>
+
+                        <div className="relative">
+                          <input
+                            type={showRawToken ? 'text' : 'password'}
+                            value={rawTokenValue}
+                            onChange={(e) => setRawTokenValue(e.target.value)}
+                            placeholder="Enter 32-character Rupayex user token..."
+                            className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                        {maskedRupayexToken && (
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            Currently stored on server: <span className="font-mono text-amber-400">{maskedRupayexToken}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSaveRupayexToken()}
+                        className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/10 cursor-pointer"
+                      >
+                        <Save size={14} />
+                        <span>Update Rupayex API Token</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400">
+                    <span className="text-slate-300 font-bold">Status note: </span>
+                    {isGatewayEnabled
+                      ? 'Users can initiate deposits and receive instant payouts via Rupayex API.'
+                      : 'Gateway disabled. Recharge orders will fallback or show maintenance notice.'}
+                  </div>
+                </div>
+
+                {/* 2. OneSignal Notification Management Suite */}
+                <div className="bg-[#0b1730] border border-slate-800/80 rounded-3xl p-5 sm:p-6 shadow-xl flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800/80">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center">
+                          <Radio size={16} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-white">OneSignal Web Push SDK</h4>
+                          <span className="text-[10px] text-slate-400 font-mono">ServiceWorker v16</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/20 text-blue-400 uppercase">
+                        {savedOnesignalAppId ? 'Configured' : 'Needs App ID'}
+                      </div>
+                    </div>
+
+                    <form onSubmit={handleSaveOneSignalSettings} className="space-y-3 mb-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-300 mb-1">
+                          OneSignal App ID
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={onesignalAppIdInput}
+                          onChange={(e) => setOnesignalAppIdInput(e.target.value)}
+                          placeholder="e.g. b2f7f966-d8cc-11e4-bed1-df8f05be55ba"
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-300 mb-1">
+                          REST API Key <span className="text-[10px] text-slate-400 font-normal">(for server push broadcasts)</span>
+                        </label>
+                        <input
+                          type="password"
+                          value={onesignalRestApiKeyInput}
+                          onChange={(e) => setOnesignalRestApiKeyInput(e.target.value)}
+                          placeholder={hasOnesignalRestApiKey ? '•••••••••••••••• (Configured, re-enter to update)' : 'os_v2_app_...'}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-95 text-slate-950 font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/10 cursor-pointer"
+                      >
+                        <Save size={14} />
+                        <span>Save OneSignal Credentials</span>
+                      </button>
+                    </form>
+
+                    {/* Push Notification Broadcast Dispatcher */}
+                    <div className="bg-slate-900/90 rounded-2xl p-3.5 border border-slate-800">
+                      <div className="flex items-center gap-1.5 text-xs font-black text-white mb-2">
+                        <Send size={13} className="text-amber-400" />
+                        <span>Send Instant Push Notification</span>
+                      </div>
+
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          value={testPushTitle}
+                          onChange={(e) => setTestPushTitle(e.target.value)}
+                          placeholder="Notification headline"
+                          className="w-full px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-white text-xs font-medium focus:outline-none focus:border-amber-500"
+                        />
+                        <textarea
+                          rows={2}
+                          value={testPushMessage}
+                          onChange={(e) => setTestPushMessage(e.target.value)}
+                          placeholder="Message content sent directly to subscriber phones/desktops..."
+                          className="w-full px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-white text-xs font-medium focus:outline-none focus:border-amber-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleDispatchPushTest}
+                          disabled={isSendingTestPush}
+                          className="w-full py-2 rounded-xl bg-rose-500 hover:bg-rose-400 active:scale-95 text-white font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-md shadow-rose-500/20 cursor-pointer"
+                        >
+                          <Send size={13} />
+                          <span>{isSendingTestPush ? 'Dispatching...' : 'Dispatch Web Push'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="mt-3 text-[10px] text-slate-400 leading-relaxed">
+                    Browser push works across Android Chrome, desktop browsers, and macOS Safari via the service worker at <span className="font-mono text-slate-300">/OneSignalSDKWorker.js</span>.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 7: SECURITY & AUDIT */}
           {activeTab === 'audit' && (
             <div className="space-y-4">
               <div className="bg-[#0b1730] border border-slate-800/80 rounded-3xl p-6 shadow-xl max-w-2xl">

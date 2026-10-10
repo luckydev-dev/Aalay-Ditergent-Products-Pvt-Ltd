@@ -29,9 +29,9 @@ export const HeroFactoryBanner: React.FC<HeroFactoryBannerProps> = ({
             <stop offset="100%" stopColor="#FFFFFF" />
           </linearGradient>
           <linearGradient id="glassWall" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#25208F" stopOpacity="0.85" />
-            <stop offset="50%" stopColor="#17145F" stopOpacity="0.9" />
-            <stop offset="100%" stopColor="#17145F" stopOpacity="0.95" />
+            <stop offset="0%" stopColor="#0d4a22" stopOpacity="0.85" />
+            <stop offset="50%" stopColor="#14532d" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#042310" stopOpacity="0.95" />
           </linearGradient>
           <linearGradient id="buildingFacade" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#FFFFFF" />
@@ -53,7 +53,7 @@ export const HeroFactoryBanner: React.FC<HeroFactoryBannerProps> = ({
         <circle cx="334" cy="55" r="14" fill="#CBD5E1" />
         <circle cx="371" cy="65" r="16" fill="#94A3B8" />
         {/* Silo Logo Badge */}
-        <rect x="323" y="85" width="22" height="12" rx="2" fill="#25208F" />
+        <rect x="323" y="85" width="22" height="12" rx="2" fill="#15803d" />
         <text x="334" y="93" textAnchor="middle" fontSize="3.5" fontWeight="bold" fill="#FFFFFF">
           WASH
         </text>
@@ -73,7 +73,7 @@ export const HeroFactoryBanner: React.FC<HeroFactoryBannerProps> = ({
         <g transform="translate(85, 62)">
           <rect x="0" y="0" width="26" height="14" rx="2" fill="#8ED000" />
           <circle cx="13" cy="7" r="4.5" fill="#FFFFFF" />
-          <text x="13" y="10" textAnchor="middle" fontSize="3" fontWeight="black" fill="#25208F">
+          <text x="13" y="10" textAnchor="middle" fontSize="3" fontWeight="black" fill="#0d4a22">
             AALAY
           </text>
         </g>
@@ -84,7 +84,7 @@ export const HeroFactoryBanner: React.FC<HeroFactoryBannerProps> = ({
         <rect x="105" y="40" width="210" height="12" rx="2" fill="#8ED000" />
 
         {/* Main Arch & Aalay Signage */}
-        <path d="M 150 52 L 270 52 L 260 90 L 160 90 Z" fill="#25208F" stroke="#17145F" strokeWidth="1" />
+        <path d="M 150 52 L 270 52 L 260 90 L 160 90 Z" fill="#0d4a22" stroke="#14532d" strokeWidth="1" />
         {/* Sun Swirl Logo on building */}
         <circle cx="210" cy="60" r="5" fill="#FFFFFF" />
         <circle cx="210" cy="60" r="3" fill="#B2E500" />

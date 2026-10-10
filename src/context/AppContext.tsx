@@ -565,34 +565,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {}
   }, []);
 
-  // Sync product plans with Firebase RTDB (Database-First, pure RTDB, no localStorage)
+  // Sync product plans with Firebase RTDB (Database-First, dual-path compatibility config/plans and plans)
   useEffect(() => {
+    let active = true;
+
+    const parsePlansVal = (val: any): ProductPlan[] => {
+      if (!val) return [];
+      const rawList = Array.isArray(val) ? val : Object.values(val);
+      return (rawList as any[]).filter((p) => p && typeof p === 'object' && p.id);
+    };
+
+    const handleSnapshot = (snapshot: any) => {
+      if (!active) return;
+      if (snapshot.exists()) {
+        const parsed = parsePlansVal(snapshot.val());
+        setPlans(parsed);
+        setIsDatabaseLoading(false);
+      } else {
+        // Fallback: Check 'plans' path if 'config/plans' was empty
+        get(ref(rtdb, 'plans'))
+          .then((pSnap) => {
+            if (!active) return;
+            if (pSnap.exists()) {
+              setPlans(parsePlansVal(pSnap.val()));
+            } else {
+              setPlans([]);
+            }
+            setIsDatabaseLoading(false);
+          })
+          .catch(() => {
+            if (active) setIsDatabaseLoading(false);
+          });
+      }
+    };
+
     try {
-      const plansRef = ref(rtdb, 'config/plans');
-      onValue(
-        plansRef,
-        (snapshot) => {
-          if (snapshot.exists()) {
-            const val = snapshot.val();
-            const list: ProductPlan[] = Array.isArray(val) ? val : Object.values(val);
-            setPlans(Array.isArray(list) ? list : []);
-          } else {
-            // Live database currently has no products: admin will add them via dashboard
-            setPlans([]);
-          }
-          setIsDatabaseLoading(false);
-        },
-        () => {
-          setPlans([]);
-          setIsDatabaseLoading(false);
-        }
-      );
+      const configPlansRef = ref(rtdb, 'config/plans');
+      onValue(configPlansRef, handleSnapshot, () => {
+        // If config/plans had read failure, try reading root plans
+        get(ref(rtdb, 'plans'))
+          .then((pSnap) => {
+            if (!active) return;
+            if (pSnap.exists()) {
+              setPlans(parsePlansVal(pSnap.val()));
+            } else {
+              setPlans([]);
+            }
+            setIsDatabaseLoading(false);
+          })
+          .catch(() => {
+            if (active) setIsDatabaseLoading(false);
+          });
+      });
+
       return () => {
-        off(plansRef);
+        active = false;
+        off(configPlansRef);
       };
     } catch (e) {
       setIsDatabaseLoading(false);
     }
+  }, []);
+
+  // Fetch OneSignal config and initialize client SDK
+  useEffect(() => {
+    fetch('/api/onesignal/config')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.appId) {
+          import('../services/onesignal').then(({ initOneSignal }) => {
+            initOneSignal(data.appId);
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn('OneSignal config fetch notice:', err);
+      });
   }, []);
 
   // Helper to prevent duplicate credits for the same order
@@ -1935,12 +1983,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const sanitizePlanForFirebase = (plan: ProductPlan): Record<string, any> => {
+    const clean: Record<string, any> = {};
+    Object.entries(plan).forEach(([key, val]) => {
+      if (val !== undefined) {
+        clean[key] = val;
+      }
+    });
+    return clean;
+  };
+
   const addNewPlan = (newPlan: ProductPlan) => {
-    setPlans((prev) => [newPlan, ...prev]);
+    setPlans((prev) => [newPlan, ...prev.filter((p) => p.id !== newPlan.id)]);
 
     try {
-      set(ref(rtdb, `config/plans/${newPlan.id}`), newPlan).catch(() => {});
-    } catch (e) {}
+      const cleanData = sanitizePlanForFirebase(newPlan);
+      set(ref(rtdb, `config/plans/${newPlan.id}`), cleanData).catch((err) =>
+        console.warn('RTDB add config/plans warning:', err)
+      );
+      set(ref(rtdb, `plans/${newPlan.id}`), cleanData).catch((err) =>
+        console.warn('RTDB add plans warning:', err)
+      );
+    } catch (e) {
+      console.error('addNewPlan exception:', e);
+    }
 
     showToast(`New product "${newPlan.name}" added to catalog!`);
   };
@@ -1950,6 +2016,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     try {
       set(ref(rtdb, `config/plans/${planId}`), null).catch(() => {});
+      set(ref(rtdb, `plans/${planId}`), null).catch(() => {});
     } catch (e) {}
 
     showToast('Product plan removed successfully.');
@@ -1958,19 +2025,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updatePlan = (updatedPlan: ProductPlan) => {
     setPlans((prev) => prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p)));
 
-    // Save to RTDB directly
     try {
-      set(ref(rtdb, `config/plans/${updatedPlan.id}`), updatedPlan).catch(() => {});
-    } catch (e) {}
+      const cleanData = sanitizePlanForFirebase(updatedPlan);
+      set(ref(rtdb, `config/plans/${updatedPlan.id}`), cleanData).catch((err) =>
+        console.warn('RTDB update config/plans warning:', err)
+      );
+      set(ref(rtdb, `plans/${updatedPlan.id}`), cleanData).catch((err) =>
+        console.warn('RTDB update plans warning:', err)
+      );
+    } catch (e) {
+      console.error('updatePlan exception:', e);
+    }
 
     showToast(`Product "${updatedPlan.name}" updated successfully!`);
   };
 
   const resetPlansToDefault = () => {
-    // Clear catalog so admin can add fresh custom plans
     setPlans([]);
     try {
       set(ref(rtdb, 'config/plans'), null).catch(() => {});
+      set(ref(rtdb, 'plans'), null).catch(() => {});
     } catch (e) {}
     showToast('Product plans cleared. You can add new products anytime.');
   };

@@ -1,99 +1,122 @@
-# Rupayex Payment Gateway & Automated Payout Integration Plan
+# Revised Implementation Plan: OneSignal Notifications, Admin Gateway Suite & Firebase Products Visibility Fix
 
-Completely remove the legacy Fampay payment gateway and integrate the **Rupayex** payment gateway (`https://rupayex.net/api`) for automated order creation, checkout redirection with live status polling, and instant admin-approved withdrawal payouts.
-
----
-
-## 1. Gateway Architecture & API Specifications
-
-### Rupayex Credentials & Endpoints
-- **Base URL**: `https://rupayex.net/api`
-- **Default API Token**: `c0bfc67f130d640a0f7f9737de2f9af6` (configurable via `RUPAYEX_API_TOKEN` environment variable or dynamically updated in the Admin Dashboard).
-- **Core APIs**:
-  1. **Create Order**: `POST /api/create-order`
-     - Headers: `X-Api-Token: <token>`
-     - Body: `amount`, `order_id`, `redirect_url`, `customer_mobile`, `remark1`, `user_token`
-     - Response: Redirects to Rupayex checkout URL / payment link.
-  2. **Query Order Status**: `GET /api/order-status?user_token=<token>&order_id=<order_id>`
-     - Response: `{ status: true, order_id, amount, payment_status: "SUCCESS" | "PENDING" | "FAILED", utr, method }`
-  3. **Order Callback / Webhook**: `POST /api/rupayex-callback`
-     - Payload: `{ order_id, amount, status: "SUCCESS", utr, payment_token }`
-  4. **Create Payout (Disbursement)**: `POST /api/create-payout`
-     - Headers: `X-Api-Token: <token>`
-     - Body: `amount`, `method` (`bank` | `upi`), `account_holder`, `account_number`, `ifsc_code`, `bank_name`, `upi_id`, `payout_id`, `user_token`
-     - Response: `{ status: true, message, data: { payout_id, amount, fee, net_amount, method, status } }`
-  5. **Query Payout Status**: `GET /api/payout-status?user_token=<token>&payout_id=<payout_id>`
-     - Response: `{ status: true, data: { payout_id, amount, fee, net_amount, method, status: "PENDING" | "APPROVED" | "PROCESSING" | "SUCCESS" | "REJECTED", processed_at } }`
-  6. **Wallet Balance**: `GET /api/wallet-balance?user_token=<token>`
-     - Response: `{ status: true, balance: 15000.00 }`
+This revised plan addresses the Firebase database rules issue causing products to disappear from the public page, while delivering the OneSignal Web SDK v16 push notification integration and the comprehensive Payment Gateway / OneSignal management hub in the Admin Dashboard.
 
 ---
 
-## 2. Server-Side Implementation (`server.ts`)
+## 1. Problem Diagnosis: Why Products Became Hidden After Applying Rules
 
-1. **Remove Old Gateway**:
-   - Completely remove `/api/create-fampay-order` and `/api/verify-fampay-order`.
-   - Remove all Fampay references, constants, and helper logic.
-2. **Add Rupayex Gateway Endpoints**:
-   - `POST /api/rupayex/create-order`:
-     - Creates order with unique ID (`RPX_ORD_<timestamp>_<random>`).
-     - Calls `https://rupayex.net/api/create-order` with headers `X-Api-Token: <token>` and body parameters.
-     - Returns `{ status: 'success', order_id, payment_url: checkoutUrl, amount }`.
-   - `GET /api/rupayex/order-status`:
-     - Calls `https://rupayex.net/api/order-status?user_token=<token>&order_id=<order_id>`.
-     - Validates actual transaction state, returning `{ status, payment_status, utr, amount }`.
-   - `POST /api/rupayex-callback`:
-     - Receives incoming webhook notifications from Rupayex and verifies the transaction.
-   - `POST /api/rupayex/create-payout`:
-     - Dispatches bank or UPI payouts to Rupayex API.
-     - Validates account details (account number, IFSC, bank name, or UPI ID).
-     - Returns payout ID and status.
-   - `GET /api/rupayex/payout-status`:
-     - Queries real-time status of payout requests from Rupayex.
-   - `GET /api/rupayex/wallet-balance`:
-     - Retrieves the merchant account balance from Rupayex for the Admin Dashboard.
-   - `POST /api/rupayex/config`:
-     - Allows owner to inspect or configure API tokens at runtime.
+### Root Cause
+1. **RTDB Path Mismatch in `database.rules.json`**:
+   - The frontend (`AppContext.tsx` line 571) subscribes to `ref(rtdb, 'config/plans')`.
+   - The security rules had `".read": false` at the database root and only defined `".read": true` on top-level `"plans"`.
+   - Because Firebase RTDB rules reject reads by default unless explicitly permitted at or above the query path, queries to `config/plans` threw a `PERMISSION_DENIED` error.
+   - The error callback in `AppContext.tsx` was triggered, resetting `plans` state to an empty list `[]`, causing the Home screen to render *"No Normal/VIP Plans Available"*.
+2. **Missing Rule for `"announcements"`**:
+   - Similar to plans, announcements were queryable under `announcements`, which also lacked an explicit public read rule.
+3. **Absence of Fallback Product Catalog**:
+   - When the remote database has no seeded products or encounters a connection blip, the app had no resilient fallback catalog.
 
 ---
 
-## 3. Client-Side Recharge Experience (`RechargeView.tsx`)
+## 2. Solution: Firebase Security Rules & Catalog Resilience
 
-1. **Seamless Rupayex Checkout Flow**:
-   - User selects an amount (e.g., ₹100, ₹290, ₹700, ₹1500, ₹5000) or enters a custom amount.
-   - Clicking **"Pay with Rupayex"** contacts `/api/rupayex/create-order` to generate a fresh payment link.
-   - Redirects the user or opens the official Rupayex checkout page.
-   - App enters an active polling state with a status sheet: *"Waiting for Rupayex payment confirmation..."* with a live spinner.
-2. **Instant Auto-Credit on SUCCESS**:
-   - When Rupayex returns `payment_status: "SUCCESS"`, the app instantly:
-     - Credits the user's wallet balance.
-     - Generates a completed transaction record with UTR.
-     - Automatically switches to the **Deposit History** tab with a success banner.
-3. **Manual Fallback / Offline UPI Option**:
-   - Retain optional manual UTR entry if user completed payment through direct UPI link.
+### A. Update `database.rules.json`
+- Explicitly permit public read access on both `"config"` / `"config/plans"` and `"plans"`:
+  ```json
+  "config": {
+    ".read": true,
+    ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+    "plans": {
+      ".read": true,
+      ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+    }
+  },
+  "plans": {
+    ".read": true,
+    ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+  },
+  "announcements": {
+    ".read": true,
+    ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+  }
+  ```
+- Retain strict isolation and authorization for `users`, `recharge_requests`, `withdrawals`, and `admins`.
+
+### B. Update `firestore.rules`
+- Add matching public read for `/config/{document=**}` and `/plans/{planId}`:
+  ```
+  match /config/{document=**} {
+    allow read: if true;
+    allow write: if isAdmin();
+  }
+  match /plans/{planId} {
+    allow read: if true;
+    allow write: if isAdmin() && isValidId(planId);
+  }
+  ```
+
+### C. Client Resilience in `AppContext.tsx`
+- Ensure `AppContext.tsx` queries `config/plans` and syncs with `plans`.
+- Provide default initial product plans (Fevicol SH Adhesive, Dr. Fixit Waterproofing, M-Seal Sealant, Tile Fix, etc.) so that new or unseeded database instances immediately display a rich, functional product catalog to all visitors.
+- If admin adds/edits custom plans in the dashboard, write to both `config/plans` and `plans` to ensure seamless compatibility.
 
 ---
 
-## 4. Admin Dashboard Automated Payouts (`AdminDashboardView.tsx`)
+## 3. OneSignal Web Push Notifications (v16)
 
-1. **Rupayex Payout Integration**:
-   - In the **Payout Applications (Withdrawals)** tab, when an admin clicks **"Approve Payout"**:
-     - The system triggers `/api/rupayex/create-payout` using the recipient's bank account or UPI ID.
-     - If the payout is accepted (`PENDING` or `SUCCESS`), records the `payout_id` and updates status to `completed` or `processing`.
-     - Displays error details if the Rupayex payout request fails (e.g., insufficient gateway balance, invalid IFSC).
-2. **Rupayex Gateway Status & Balance Widget**:
-   - In the Admin Dashboard overview/settings, display the live **Rupayex Gateway Balance** (from `GET /api/rupayex/wallet-balance`) so admins can monitor disbursement funds before approving payouts.
-   - Provide an option to view or update the Rupayex API Token.
+### A. Service Worker Distribution
+- Create `public/OneSignalSDKWorker.js` with official Web SDK v16 contents:
+  ```javascript
+  importScripts("https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js");
+  ```
+- Ensure `server.ts` serves `/OneSignalSDKWorker.js` with `Content-Type: application/javascript` and header `Service-Worker-Allowed: /`.
+
+### B. OneSignal Page SDK in `index.html` & Client Helper
+- Add script tag to `index.html`:
+  ```html
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+  ```
+- Implement `src/utils/oneSignalService.ts`:
+  - `initOneSignal(appId: string)` using `window.OneSignalDeferred`.
+  - Notification permission prompts, subscription state tracking, and external user ID linking.
+  - Opt-in button in `TopBar.tsx` / `ProfileView.tsx`.
 
 ---
 
-## 5. Verification & Testing Plan
+## 4. Admin Dashboard Gateway & Notification Suite
 
-1. **Build & Lint Verification**:
-   - Run `compile_applet` and `lint_applet` to ensure TypeScript compilation without warnings or errors.
-2. **Order Creation & Status Test**:
-   - Test creating a Rupayex order with test amounts and checking order status.
-3. **Payout Creation Test**:
-   - Test the `/api/rupayex/create-payout` endpoint validation and error handling for both bank and UPI transfer modes.
-4. **Dev Server Restart & Smoke Testing**:
-   - Restart the server and verify full functionality across user recharge and admin payout flows.
+### A. Backend Settings Storage & Endpoints (`server.ts`)
+- Configurable settings stored with server-side validation:
+  - `rupayexEnabled` (boolean)
+  - `rupayexApiToken` (masked on GET, updatable on POST)
+  - `oneSignalAppId` (string)
+  - `oneSignalRestApiKey` (masked on GET, updatable on POST)
+  - `minRechargeAmount` (number)
+- Endpoints:
+  - `GET /api/admin/gateway-config` (admin auth required)
+  - `POST /api/admin/gateway-config` (admin auth required)
+  - `POST /api/admin/send-push-notification` (admin auth required, dispatches live broadcast via OneSignal REST API)
+
+### B. Admin Dashboard UI (`AdminDashboardView.tsx`)
+- Add **"Gateways & Push Settings"** tab with emerald/lime styling:
+  1. **Rupayex Payment Gateway Card**:
+     - Toggle gateway: Active / Maintenance mode.
+     - Live Token editor modal with verification.
+     - Live wallet balance query and status indicator.
+  2. **OneSignal Push Notifications Card**:
+     - OneSignal App ID input & save button.
+     - OneSignal REST API Key input & save button.
+     - **Send Push Broadcast Tool**: Admin can compose Title, Message, URL and immediately deliver a push notification to all subscribed users.
+  3. **Payment Gateways in `RechargeView.tsx`**:
+     - Checks if Rupayex gateway is enabled before proceeding; gracefully alerts the user if gateway is offline.
+
+---
+
+## 5. Verification & Validation Steps
+1. Verify `database.rules.json` and test that `config/plans` and `plans` are readable publicly.
+2. Verify public Home page immediately displays product cards in both Normal and VIP tabs.
+3. Verify `/OneSignalSDKWorker.js` is accessible at root URL.
+4. Verify OneSignal settings in Admin Dashboard save and persist correctly.
+5. Verify Rupayex gateway toggle works and blocks/enables transactions accordingly.
+6. Run `compile_applet` and `lint_applet` to ensure zero compilation and type errors.

@@ -132,12 +132,13 @@ export const SecurityView: React.FC = () => {
       <SubHeader title="Security & Password" />
 
       {/* Top Shield Hero Section */}
-      <div className="bg-[#0047B3] text-white pt-4 pb-16 px-4 rounded-b-3xl relative text-center">
-        <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center mx-auto mb-2 text-white shadow-inner">
+      <div className="bg-gradient-to-b from-[#14532d] via-[#15803d] to-[#166534] text-white pt-4 pb-16 px-4 rounded-b-3xl relative text-center overflow-hidden">
+        <div className="absolute -top-10 -right-10 w-44 h-44 bg-[#B2E500]/20 rounded-full blur-2xl pointer-events-none" />
+        <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center mx-auto mb-2 text-white shadow-inner relative z-10">
           <Shield size={32} />
         </div>
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-xs text-xs font-mono font-bold tracking-wider">
-          <Phone size={12} className="text-blue-100" />
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-xs text-xs font-mono font-bold tracking-wider relative z-10 text-emerald-100">
+          <Phone size={12} className="text-emerald-200" />
           <span>{maskedPhone}</span>
         </div>
       </div>
@@ -231,7 +232,7 @@ export const SecurityView: React.FC = () => {
           className="bg-white rounded-3xl p-5 shadow-[0_2px_14px_rgba(0,0,0,0.04)] border border-slate-100 space-y-4"
         >
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0047B3] flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#15803d] flex items-center justify-center shrink-0">
               <KeyRound size={16} />
             </div>
             <div>
@@ -251,7 +252,7 @@ export const SecurityView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowCustomerService(true)}
-                className="text-[11px] text-[#0047B3] hover:underline font-bold flex items-center gap-0.5"
+                className="text-[11px] text-[#15803d] hover:underline font-bold flex items-center gap-0.5 cursor-pointer"
               >
                 <HelpCircle size={11} />
                 <span>Forgot password?</span>
@@ -267,7 +268,7 @@ export const SecurityView: React.FC = () => {
                 onChange={(e) => setCurrentPass(e.target.value)}
                 placeholder="Enter current password"
                 required
-                className="w-full pl-10 pr-10 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-medium focus:outline-none focus:border-[#0047B3] focus:bg-white transition-colors"
+                className="w-full pl-10 pr-10 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-medium focus:outline-none focus:border-[#15803d] focus:bg-white transition-colors"
               />
               <button
                 type="button"
@@ -337,7 +338,7 @@ export const SecurityView: React.FC = () => {
                     ? 'border-emerald-400 focus:border-emerald-500'
                     : confirmPass && confirmPass !== newPass
                     ? 'border-rose-400 focus:border-rose-500'
-                    : 'border-slate-200 focus:border-[#0047B3]'
+                    : 'border-slate-200 focus:border-[#15803d]'
                 }`}
               />
               <button
@@ -372,7 +373,7 @@ export const SecurityView: React.FC = () => {
           <button
             type="submit"
             disabled={isUpdating}
-            className="w-full py-3.5 rounded-2xl bg-[#0047B3] hover:bg-[#003d99] active:scale-[0.98] disabled:opacity-60 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-md shadow-blue-900/15 transition-all mt-2 cursor-pointer"
+            className="w-full py-3.5 rounded-2xl bg-[#15803d] hover:bg-[#166534] active:scale-[0.98] disabled:opacity-60 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-900/20 transition-all mt-2 cursor-pointer"
           >
             {isUpdating ? (
               <>

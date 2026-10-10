@@ -68,7 +68,7 @@ export const PurchaseRecordView: React.FC = () => {
         {/* 3 Summary Cards */}
         <div className="grid grid-cols-3 gap-2.5">
           <div className="bg-white rounded-2xl p-3 shadow-[0_2px_12px_rgba(0,0,0,0.04)] border border-slate-100 text-center">
-            <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0047B3] flex items-center justify-center mx-auto mb-1.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#15803d] flex items-center justify-center mx-auto mb-1.5">
               <ShoppingBag size={16} />
             </div>
             <div className="text-xl font-black text-slate-900">{orders.length}</div>
@@ -78,10 +78,10 @@ export const PurchaseRecordView: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-2xl p-3 shadow-[0_2px_12px_rgba(0,0,0,0.04)] border border-slate-100 text-center">
-            <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0047B3] flex items-center justify-center mx-auto mb-1.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#15803d] flex items-center justify-center mx-auto mb-1.5">
               <IndianRupee size={16} />
             </div>
-            <div className="text-xl font-black text-[#0047B3]">
+            <div className="text-xl font-black text-[#15803d]">
               ₹{totalInvested.toLocaleString('en-IN')}
             </div>
             <div className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">
@@ -90,7 +90,7 @@ export const PurchaseRecordView: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-2xl p-3 shadow-[0_2px_12px_rgba(0,0,0,0.04)] border border-slate-100 text-center">
-            <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0047B3] flex items-center justify-center mx-auto mb-1.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#15803d] flex items-center justify-center mx-auto mb-1.5">
               <TrendingUp size={16} />
             </div>
             <div className="text-xl font-black text-emerald-600">
@@ -103,12 +103,12 @@ export const PurchaseRecordView: React.FC = () => {
         </div>
 
         {/* Server Time Protection Banner */}
-        <div className="bg-blue-50/80 border border-blue-200/60 rounded-2xl p-2.5 flex items-center justify-between text-xs text-blue-900">
+        <div className="bg-emerald-50/80 border border-emerald-200/60 rounded-2xl p-2.5 flex items-center justify-between text-xs text-emerald-900">
           <div className="flex items-center gap-2">
-            <ShieldCheck size={16} className="text-[#0047B3] shrink-0" />
+            <ShieldCheck size={16} className="text-[#15803d] shrink-0" />
             <span className="font-bold text-[11px]">Server-Authoritative 24H Return System</span>
           </div>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-[#0047B3]">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-[#15803d]">
             Tamper Proof
           </span>
         </div>
@@ -119,7 +119,7 @@ export const PurchaseRecordView: React.FC = () => {
             onClick={() => setActiveTab('normal')}
             className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition-all ${
               activeTab === 'normal'
-                ? 'bg-[#0047B3] text-white shadow-md'
+                ? 'bg-[#15803d] text-white shadow-md'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -129,7 +129,7 @@ export const PurchaseRecordView: React.FC = () => {
             onClick={() => setActiveTab('vip')}
             className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition-all ${
               activeTab === 'vip'
-                ? 'bg-[#0047B3] text-white shadow-md'
+                ? 'bg-[#15803d] text-white shadow-md'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -151,7 +151,7 @@ export const PurchaseRecordView: React.FC = () => {
             </p>
             <button
               onClick={() => setSubScreen('none')}
-              className="px-5 py-2.5 rounded-xl bg-[#0047B3] text-white text-xs font-bold shadow-md hover:bg-[#003d99] active:scale-95 transition-all"
+              className="px-5 py-2.5 rounded-xl bg-[#15803d] text-white text-xs font-bold shadow-md hover:bg-[#166534] active:scale-95 transition-all cursor-pointer"
             >
               Explore Plans
             </button>
@@ -205,7 +205,7 @@ export const PurchaseRecordView: React.FC = () => {
                       <h4 className="text-sm font-black text-slate-900">{order.planName}</h4>
                       <div className="text-xs text-slate-500 mt-0.5">
                         Invested: <b className="text-slate-800">₹{order.price}</b> · Daily:{' '}
-                        <b className="text-[#0047B3]">₹{order.dailyIncome}</b>
+                        <b className="text-[#15803d]">₹{order.dailyIncome}</b>
                       </div>
                       <div className="text-[11px] text-slate-400 mt-0.5">
                         Days Remaining: {order.daysRemaining}/{order.durationDays} · Collected:{' '}

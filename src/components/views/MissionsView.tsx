@@ -25,9 +25,9 @@ export const MissionsView: React.FC = () => {
 
       <div className="p-4 space-y-4">
         {/* Top Gradient Metric Card */}
-        <div className="rounded-3xl bg-gradient-to-br from-[#003d99] via-[#0047B3] to-[#002e73] text-white p-5 shadow-lg relative overflow-hidden">
+        <div className="rounded-3xl bg-gradient-to-br from-[#14532d] via-[#15803d] to-[#166534] text-white p-5 shadow-lg relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-blue-200">
+            <div className="flex items-center gap-2 text-xs font-bold text-emerald-200">
               <Users size={16} />
               <span>Real Active Team Members</span>
             </div>
@@ -40,7 +40,7 @@ export const MissionsView: React.FC = () => {
             <span className="text-4xl font-black tracking-tight text-white">
               {realActiveCount}
             </span>
-            <span className="text-xs text-blue-200 font-semibold">
+            <span className="text-xs text-emerald-200 font-semibold">
               member{realActiveCount === 1 ? '' : 's'} joined
             </span>
           </div>
@@ -57,7 +57,7 @@ export const MissionsView: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-blue-100 font-medium">
+          <div className="flex items-center justify-between text-[11px] text-emerald-100 font-medium">
             <span>
               {nextMission
                 ? `Need ${neededMembers} more member${neededMembers > 1 ? 's' : ''} to unlock ₹${nextMission.rewardAmount.toLocaleString('en-IN')}`
@@ -74,7 +74,7 @@ export const MissionsView: React.FC = () => {
         {/* Section Header with Real Invite Action */}
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-2">
-            <Trophy size={18} className="text-[#0047B3]" />
+            <Trophy size={18} className="text-[#15803d]" />
             <h3 className="text-base font-black text-slate-900 tracking-tight">
               Milestone Cash Bonuses
             </h3>
@@ -83,7 +83,7 @@ export const MissionsView: React.FC = () => {
           {/* Real Invitation Action */}
           <button
             onClick={() => setShowInviteModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0047B3] hover:bg-[#003d99] text-white text-xs font-black shadow-sm active:scale-95 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#15803d] hover:bg-[#166534] text-white text-xs font-black shadow-sm active:scale-95 transition-all cursor-pointer"
           >
             <UserPlus size={13} />
             <span>Invite Friends</span>

@@ -25,6 +25,19 @@ async function startServer() {
   // ==========================================
   let rupayexApiToken = process.env.RUPAYEX_API_TOKEN || 'c0bfc67f130d640a0f7f9737de2f9af6';
   const RUPAYEX_BASE_URL = 'https://rupayex.net/api';
+  const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET || 'aalay_admin_secure_key_2026';
+
+  const requireAdminAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const authHeader = req.headers['x-admin-key'] || req.headers['authorization'];
+    if (
+      authHeader === ADMIN_API_SECRET ||
+      authHeader === `Bearer ${ADMIN_API_SECRET}` ||
+      req.body?.adminKey === ADMIN_API_SECRET
+    ) {
+      return next();
+    }
+    return res.status(403).json({ status: false, error: 'Unauthorized: Admin authorization required' });
+  };
 
   const getRupayexToken = () => rupayexApiToken.trim();
 
@@ -148,8 +161,8 @@ async function startServer() {
     return res.redirect(`/?recharge_status=${status}&order_id=${order_id}&utr=${utr}#deposit-history`);
   });
 
-  // 4. Create Payout (POST /api/rupayex/create-payout)
-  app.post('/api/rupayex/create-payout', async (req, res) => {
+  // 4. Create Payout (POST /api/rupayex/create-payout - Admin Only)
+  app.post('/api/rupayex/create-payout', requireAdminAuth, async (req, res) => {
     try {
       const {
         amount,
@@ -259,8 +272,8 @@ async function startServer() {
     }
   });
 
-  // 6. Query Wallet Balance (GET /api/rupayex/wallet-balance)
-  app.get('/api/rupayex/wallet-balance', async (req, res) => {
+  // 6. Query Wallet Balance (GET /api/rupayex/wallet-balance - Admin Only)
+  app.get('/api/rupayex/wallet-balance', requireAdminAuth, async (req, res) => {
     try {
       const token = getRupayexToken();
       const controller = new AbortController();
@@ -283,23 +296,116 @@ async function startServer() {
     }
   });
 
-  // 7. Get & Update Rupayex Gateway Token (GET / POST /api/rupayex/config)
+  // Payment Gateway and Notification State
+  let rupayexGatewayEnabled = true;
+  let onesignalAppId = process.env.ONESIGNAL_APP_ID || '';
+  let onesignalRestApiKey = process.env.ONESIGNAL_REST_API_KEY || '';
+
+  // 7. Get & Update Rupayex Gateway Token & Status
   app.get('/api/rupayex/config', (req, res) => {
     return res.json({
       status: true,
       hasToken: !!rupayexApiToken,
       tokenMasked: rupayexApiToken ? `${rupayexApiToken.slice(0, 6)}...${rupayexApiToken.slice(-4)}` : '',
       token: rupayexApiToken,
+      enabled: rupayexGatewayEnabled,
     });
   });
 
-  app.post('/api/rupayex/config', (req, res) => {
-    const { token } = req.body;
+  app.post('/api/rupayex/config', requireAdminAuth, (req, res) => {
+    const { token, enabled } = req.body;
+    if (typeof enabled === 'boolean') {
+      rupayexGatewayEnabled = enabled;
+    }
     if (token && typeof token === 'string' && token.trim().length >= 6) {
       rupayexApiToken = token.trim();
-      return res.json({ status: true, message: 'Rupayex API Token updated successfully!' });
     }
-    return res.status(400).json({ status: false, error: 'Valid API token is required' });
+    return res.json({ 
+      status: true, 
+      message: 'Gateway configuration updated successfully!',
+      enabled: rupayexGatewayEnabled,
+      hasToken: !!rupayexApiToken,
+      tokenMasked: rupayexApiToken ? `${rupayexApiToken.slice(0, 6)}...${rupayexApiToken.slice(-4)}` : '',
+    });
+  });
+
+  // 8. OneSignal Notification Configuration & Push Proxy
+  app.get('/api/onesignal/config', (req, res) => {
+    return res.json({
+      status: true,
+      appId: onesignalAppId,
+      hasRestApiKey: !!onesignalRestApiKey,
+      restApiKeyMasked: onesignalRestApiKey ? `${onesignalRestApiKey.slice(0, 5)}...${onesignalRestApiKey.slice(-4)}` : '',
+    });
+  });
+
+  app.post('/api/onesignal/config', requireAdminAuth, (req, res) => {
+    const { appId, restApiKey } = req.body;
+    if (typeof appId === 'string') {
+      onesignalAppId = appId.trim();
+    }
+    if (typeof restApiKey === 'string' && restApiKey.trim()) {
+      onesignalRestApiKey = restApiKey.trim();
+    }
+    return res.json({
+      status: true,
+      message: 'OneSignal credentials saved successfully!',
+      appId: onesignalAppId,
+      hasRestApiKey: !!onesignalRestApiKey,
+    });
+  });
+
+  app.post('/api/onesignal/send', requireAdminAuth, async (req, res) => {
+    try {
+      const { title, message, url, segments } = req.body;
+      if (!title || !message) {
+        return res.status(400).json({ status: false, error: 'Title and message are required.' });
+      }
+      if (!onesignalAppId || !onesignalRestApiKey) {
+        return res.status(400).json({ 
+          status: false, 
+          error: 'OneSignal App ID and REST API Key must be configured in Admin Dashboard first.' 
+        });
+      }
+
+      const payload: any = {
+        app_id: onesignalAppId,
+        headings: { en: title },
+        contents: { en: message },
+        included_segments: segments && Array.isArray(segments) && segments.length > 0 ? segments : ['Total Subscriptions'],
+      };
+
+      if (url) {
+        payload.url = url;
+      }
+
+      const response = await fetch('https://onesignal.com/api/v1/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Authorization': `Basic ${onesignalRestApiKey}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return res.status(response.status).json({
+          status: false,
+          error: data.errors?.[0] || 'Failed to dispatch OneSignal notification',
+          details: data,
+        });
+      }
+
+      return res.json({
+        status: true,
+        message: 'Push notification successfully dispatched to subscribers!',
+        data,
+      });
+    } catch (err: any) {
+      console.error('[OneSignal Send Error]', err);
+      return res.status(500).json({ status: false, error: err.message || 'Error sending push notification' });
+    }
   });
 
   // UPI Recharge Verification Endpoint (Automated Verification + Screenshot & UTR Processing)

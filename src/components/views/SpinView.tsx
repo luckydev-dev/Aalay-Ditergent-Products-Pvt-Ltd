@@ -194,7 +194,7 @@ export const SpinView: React.FC = () => {
         <IconComponent
           size={24}
           className={`mb-1 transition-transform ${
-            isActive ? 'scale-115 text-slate-950' : 'text-blue-100'
+            isActive ? 'scale-115 text-slate-950' : 'text-emerald-200'
           }`}
         />
         <span
@@ -209,29 +209,33 @@ export const SpinView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen pb-24 pt-2 px-3 sm:px-4 bg-gradient-to-b from-[#003380] via-[#0047b3] to-[#002255] text-white max-w-md mx-auto">
+    <div className="min-h-screen pb-24 pt-2 px-3 sm:px-4 bg-gradient-to-b from-[#063b1b] via-[#14532d] to-[#032210] text-white max-w-md mx-auto relative overflow-hidden">
+      {/* Subtle green ambient blur glows */}
+      <div className="absolute -top-16 -right-16 w-48 h-48 bg-[#B2E500]/15 rounded-full blur-2xl pointer-events-none" />
+      <div className="absolute top-1/2 -left-20 w-52 h-52 bg-[#8ED000]/15 rounded-full blur-3xl pointer-events-none" />
+
       {/* Title & Tag */}
-      <div className="text-center my-3">
+      <div className="text-center my-3 relative z-10">
         <h2 className="text-2xl font-black tracking-tight text-white mb-1 drop-shadow-sm">
           Happy Lucky Draw
         </h2>
-        <div className="inline-block px-3 py-1 rounded-full bg-white/15 backdrop-blur-xs text-[11px] font-bold text-blue-100">
+        <div className="inline-block px-3 py-1 rounded-full bg-white/15 backdrop-blur-xs text-[11px] font-bold text-emerald-100">
           Diverse gifts · daily free spin
         </div>
       </div>
 
       {/* Live Winners Ticker */}
-      <div className="bg-black/25 backdrop-blur-xs rounded-full px-3.5 py-1.5 mb-4 flex items-center gap-2 border border-white/10 text-xs">
+      <div className="bg-black/25 backdrop-blur-xs rounded-full px-3.5 py-1.5 mb-4 flex items-center gap-2 border border-white/10 text-xs relative z-10">
         <Megaphone size={14} className="text-amber-300 shrink-0" />
         <div className="overflow-hidden flex-1 whitespace-nowrap">
-          <span className="text-blue-100 font-semibold transition-opacity duration-300">
+          <span className="text-emerald-100 font-semibold transition-opacity duration-300">
             {WINNERS_FEED[marqueeIndex]} &nbsp;·&nbsp; {WINNERS_FEED[(marqueeIndex + 1) % WINNERS_FEED.length]}
           </span>
         </div>
       </div>
 
       {/* 3x3 Spin Grid Card */}
-      <div className="bg-[#002b6d]/80 rounded-3xl p-3.5 sm:p-4 border border-blue-400/20 shadow-2xl mb-4">
+      <div className="bg-[#042d15]/90 rounded-3xl p-3.5 sm:p-4 border border-emerald-400/25 shadow-2xl mb-4 relative z-10 backdrop-blur-xs">
         <div className="grid grid-cols-3 gap-2.5">
           {renderCell(0, 0)}
           {renderCell(0, 1)}
@@ -252,8 +256,8 @@ export const SpinView: React.FC = () => {
           disabled={isSpinning}
           className={`w-full py-3.5 rounded-2xl font-black text-sm tracking-wide flex items-center justify-center gap-2 shadow-lg mt-4 active:scale-98 transition-all ${
             isSpinning || user.spinsLeft <= 0
-              ? 'bg-blue-400/40 text-blue-200 cursor-not-allowed'
-              : 'bg-gradient-to-r from-blue-500 via-[#0055d4] to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white shadow-blue-900/40'
+              ? 'bg-emerald-900/60 text-emerald-300/60 cursor-not-allowed'
+              : 'bg-gradient-to-r from-[#16a34a] via-[#15803d] to-[#166534] hover:from-[#22c55e] hover:to-[#16a34a] text-white shadow-emerald-950/40 cursor-pointer'
           }`}
         >
           <Play size={16} className="fill-white" />
@@ -263,7 +267,7 @@ export const SpinView: React.FC = () => {
 
       {/* Win Celebration Modal */}
       {winModalData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#03190d]/80 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-xs bg-white rounded-3xl p-6 text-center text-slate-900 shadow-2xl animate-in zoom-in-95 border border-slate-100">
             <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-3">
               <Sparkles size={32} />
@@ -271,7 +275,7 @@ export const SpinView: React.FC = () => {
             <h3 className="text-xl font-black text-slate-900 mb-1">
               {winModalData.amount > 0 ? 'You Won!' : 'Spin Result'}
             </h3>
-            <p className="text-2xl font-black text-[#0047B3] mb-2">
+            <p className="text-2xl font-black text-[#15803d] mb-2 font-mono">
               {winModalData.amount > 0 ? `+₹${winModalData.amount}` : 'Better Luck Next Time'}
             </p>
             <p className="text-xs text-slate-500 mb-5">
@@ -281,7 +285,7 @@ export const SpinView: React.FC = () => {
             </p>
             <button
               onClick={() => setWinModalData(null)}
-              className="w-full py-3 rounded-xl bg-[#0047B3] hover:bg-[#003d99] text-white font-bold text-xs shadow-md"
+              className="w-full py-3 rounded-xl bg-[#15803d] hover:bg-[#166534] text-white font-bold text-xs shadow-md cursor-pointer"
             >
               Great, Continue
             </button>
@@ -290,13 +294,13 @@ export const SpinView: React.FC = () => {
       )}
 
       {/* 2. Treasure Box Section */}
-      <div className="bg-[#00245e]/90 rounded-3xl p-4 sm:p-5 border border-blue-400/20 shadow-xl space-y-3.5">
+      <div className="bg-[#042d15]/90 rounded-3xl p-4 sm:p-5 border border-emerald-400/25 shadow-xl space-y-3.5 relative z-10 backdrop-blur-xs">
         <div className="text-center">
           <div className="flex items-center justify-center gap-2 text-base font-black text-white">
             <Gift size={18} className="text-amber-400" />
             <span>Treasure Box</span>
           </div>
-          <p className="text-xs text-blue-200 mt-0.5">
+          <p className="text-xs text-emerald-200/90 mt-0.5">
             Enter gift code from Telegram to win rewards
           </p>
         </div>
@@ -325,14 +329,14 @@ export const SpinView: React.FC = () => {
               type="text"
               value={giftInput}
               onChange={(e) => setGiftInput(e.target.value)}
-              placeholder="Enter your gift code (e.g. PIDI50)"
-              className="w-full px-4 py-3 rounded-2xl bg-white/10 border border-white/20 text-white placeholder-blue-200/60 text-xs font-semibold focus:outline-none focus:border-amber-400 focus:bg-white/15"
+              placeholder="Enter your gift code (e.g. AALAY50)"
+              className="w-full px-4 py-3 rounded-2xl bg-white/10 border border-white/20 text-white placeholder-emerald-200/60 text-xs font-semibold focus:outline-none focus:border-[#B2E500] focus:bg-white/15"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-slate-950 font-black text-xs tracking-wider uppercase shadow-md active:scale-98 transition-all flex items-center justify-center gap-1.5"
+            className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-slate-950 font-black text-xs tracking-wider uppercase shadow-md active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <span>Claim Now</span>
           </button>
@@ -341,10 +345,10 @@ export const SpinView: React.FC = () => {
         {/* Hint to join telegram for codes */}
         <div className="text-center">
           <a
-            href="https://t.me/pidilite_official"
+            href="https://t.me/aaley_official"
             target="_blank"
             rel="noreferrer"
-            className="text-xs text-blue-200 hover:text-white transition-colors underline"
+            className="text-xs text-emerald-200/90 hover:text-white transition-colors underline"
           >
             Get daily code from <b>Telegram channel</b>
           </a>
@@ -356,7 +360,7 @@ export const SpinView: React.FC = () => {
             <div className="text-xs font-black text-amber-300">
               ₹{totalWonTreasure}
             </div>
-            <div className="text-[9px] uppercase font-bold text-blue-200/80">
+            <div className="text-[9px] uppercase font-bold text-emerald-200/80">
               TOTAL WON
             </div>
           </div>
@@ -365,16 +369,16 @@ export const SpinView: React.FC = () => {
             <div className="text-xs font-black text-white">
               ₹{user.balance}
             </div>
-            <div className="text-[9px] uppercase font-bold text-blue-200/80">
+            <div className="text-[9px] uppercase font-bold text-emerald-200/80">
               BALANCE
             </div>
           </div>
 
           <div className="bg-white/5 rounded-xl p-2 text-center">
-            <div className="text-xs font-black text-blue-200">
+            <div className="text-xs font-black text-emerald-200">
               {redeemedCodes.length}
             </div>
-            <div className="text-[9px] uppercase font-bold text-blue-200/80">
+            <div className="text-[9px] uppercase font-bold text-emerald-200/80">
               CODES USED
             </div>
           </div>

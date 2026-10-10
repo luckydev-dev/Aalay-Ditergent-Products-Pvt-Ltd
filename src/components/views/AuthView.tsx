@@ -115,7 +115,7 @@ export const AuthView: React.FC = () => {
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
                   placeholder="Nickname"
-                  className="w-full pl-11 pr-4 py-3.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#0047B3] focus:bg-white transition-all placeholder-slate-400"
+                  className="w-full pl-11 pr-4 py-3.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#15803d] focus:bg-white transition-all placeholder-slate-400"
                 />
               </div>
             )}
@@ -133,7 +133,7 @@ export const AuthView: React.FC = () => {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
                 placeholder="Enter Phone Number"
-                className="w-full pl-22 pr-4 py-3.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#0047B3] focus:bg-white transition-all placeholder-slate-400 tracking-wide font-mono"
+                className="w-full pl-22 pr-4 py-3.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#15803d] focus:bg-white transition-all placeholder-slate-400 tracking-wide font-mono"
               />
             </div>
 
@@ -147,12 +147,12 @@ export const AuthView: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={isRegister ? 'Create New Pass' : 'Enter your Pass'}
-                className="w-full pl-11 pr-11 py-3.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#0047B3] focus:bg-white transition-all placeholder-slate-400"
+                className="w-full pl-11 pr-11 py-3.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#15803d] focus:bg-white transition-all placeholder-slate-400"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#0047B3] hover:text-blue-800"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#15803d] hover:text-blue-800"
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
@@ -169,12 +169,12 @@ export const AuthView: React.FC = () => {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm New Pass"
-                  className="w-full pl-11 pr-11 py-3.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#0047B3] focus:bg-white transition-all placeholder-slate-400"
+                  className="w-full pl-11 pr-11 py-3.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#15803d] focus:bg-white transition-all placeholder-slate-400"
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#0047B3] hover:text-blue-800"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#15803d] hover:text-blue-800"
                 >
                   {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -192,7 +192,7 @@ export const AuthView: React.FC = () => {
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value)}
                   placeholder="Enter Invitation Code"
-                  className="w-full pl-11 pr-4 py-3.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#0047B3] focus:bg-white transition-all placeholder-slate-400"
+                  className="w-full pl-11 pr-4 py-3.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#15803d] focus:bg-white transition-all placeholder-slate-400"
                 />
               </div>
             )}
@@ -203,7 +203,7 @@ export const AuthView: React.FC = () => {
               className="flex items-center gap-2 pt-1 cursor-pointer select-none text-xs text-slate-600"
             >
               {agreeTerms ? (
-                <div className="w-4 h-4 rounded bg-[#0047B3] flex items-center justify-center text-white shrink-0">
+                <div className="w-4 h-4 rounded bg-[#15803d] flex items-center justify-center text-white shrink-0">
                   <svg viewBox="0 0 24 24" className="w-3 h-3 stroke-current stroke-[3] fill-none">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
@@ -215,7 +215,7 @@ export const AuthView: React.FC = () => {
                 {isRegister
                   ? 'I have agree to the '
                   : 'By logging in you agree to the '}
-                <span className="font-bold text-[#0047B3] underline">
+                <span className="font-bold text-[#15803d] underline">
                   Terms & Conditions
                 </span>
               </span>
@@ -225,7 +225,7 @@ export const AuthView: React.FC = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#0047B3] to-[#0055d4] hover:from-[#003894] hover:to-[#0047B3] active:scale-[0.98] disabled:opacity-75 disabled:pointer-events-none text-white font-black text-sm tracking-wide shadow-lg shadow-blue-900/20 transition-all mt-4 flex items-center justify-center gap-2"
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#15803d] via-[#16a34a] to-[#22c55e] hover:from-[#166534] hover:to-[#15803d] active:scale-[0.98] disabled:opacity-75 disabled:pointer-events-none text-white font-black text-sm tracking-wide shadow-lg shadow-emerald-900/20 transition-all mt-4 flex items-center justify-center gap-2 cursor-pointer"
             >
               {isLoading ? (
                 <>
@@ -246,7 +246,7 @@ export const AuthView: React.FC = () => {
               Already have an account?{' '}
               <button
                 onClick={() => setIsRegister(false)}
-                className="font-bold text-[#0047B3] hover:underline ml-1"
+                className="font-bold text-[#15803d] hover:underline ml-1"
               >
                 Login
               </button>
@@ -256,7 +256,7 @@ export const AuthView: React.FC = () => {
               Don't have an account?{' '}
               <button
                 onClick={() => setIsRegister(true)}
-                className="font-bold text-[#0047B3] hover:underline ml-1"
+                className="font-bold text-[#15803d] hover:underline ml-1"
               >
                 Register
               </button>

@@ -90,7 +90,7 @@ export const TeamView: React.FC = () => {
         <div className="grid grid-cols-3 gap-2.5">
           <div className="bg-white rounded-3xl p-3.5 shadow-[0_2px_14px_rgba(0,0,0,0.04)] border border-slate-100 flex flex-col items-center justify-center text-center">
             <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">
-              <Users size={12} className="text-[#0047B3]" />
+              <Users size={12} className="text-[#15803d]" />
               <span>MEMBERS</span>
             </div>
             <div className="text-xl font-black text-slate-900 tracking-tight">
@@ -100,10 +100,10 @@ export const TeamView: React.FC = () => {
 
           <div className="bg-white rounded-3xl p-3.5 shadow-[0_2px_14px_rgba(0,0,0,0.04)] border border-slate-100 flex flex-col items-center justify-center text-center">
             <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">
-              <IndianRupee size={12} className="text-[#0047B3]" />
+              <IndianRupee size={12} className="text-[#15803d]" />
               <span>RECHARGE</span>
             </div>
-            <div className="text-xl font-black text-[#0047B3] tracking-tight">
+            <div className="text-xl font-black text-[#15803d] tracking-tight">
               ₹{(l1Recharge + l2Recharge + l3Recharge || user.teamRecharge).toLocaleString('en-IN')}
             </div>
           </div>
@@ -124,7 +124,7 @@ export const TeamView: React.FC = () => {
           <div className="mb-2 flex items-center justify-between">
             <div>
               <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-1.5">
-                <Layers size={17} className="text-[#0047B3]" />
+                <Layers size={17} className="text-[#15803d]" />
                 <span>3-Tier Commission Structure</span>
               </h3>
               <p className="text-xs text-slate-500">Tier percentages applied automatically</p>
@@ -133,23 +133,23 @@ export const TeamView: React.FC = () => {
 
           <div className="space-y-2.5">
             {/* Level 1: 10% */}
-            <div className="bg-white rounded-3xl p-4 shadow-[0_2px_14px_rgba(0,0,0,0.04)] border border-slate-100 transition-all hover:border-blue-200">
+            <div className="bg-white rounded-3xl p-4 shadow-[0_2px_14px_rgba(0,0,0,0.04)] border border-slate-100 transition-all hover:border-emerald-300">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-base shadow-sm">
+                  <div className="w-10 h-10 rounded-2xl bg-[#15803d] text-white flex items-center justify-center font-black text-base shadow-sm">
                     1
                   </div>
                   <div>
                     <h4 className="text-sm font-black text-slate-900 leading-tight flex items-center gap-1.5">
                       <span>Level 1 (Direct)</span>
                     </h4>
-                    <span className="text-xs text-blue-600 font-extrabold">
+                    <span className="text-xs text-[#15803d] font-extrabold">
                       10% Commission
                     </span>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-base font-black text-blue-700">
+                  <div className="text-base font-black text-emerald-700">
                     ₹{l1Income.toLocaleString('en-IN')}
                   </div>
                   <div className="text-[10px] text-slate-400 font-bold uppercase">Earned</div>
@@ -177,23 +177,23 @@ export const TeamView: React.FC = () => {
             </div>
 
             {/* Level 2: 20% */}
-            <div className="bg-white rounded-3xl p-4 shadow-[0_2px_14px_rgba(0,0,0,0.04)] border border-slate-100 transition-all hover:border-blue-200">
+            <div className="bg-white rounded-3xl p-4 shadow-[0_2px_14px_rgba(0,0,0,0.04)] border border-slate-100 transition-all hover:border-emerald-300">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-base shadow-sm">
+                  <div className="w-10 h-10 rounded-2xl bg-[#166534] text-white flex items-center justify-center font-black text-base shadow-sm">
                     2
                   </div>
                   <div>
                     <h4 className="text-sm font-black text-slate-900 leading-tight">
                       Level 2 (Secondary)
                     </h4>
-                    <span className="text-xs text-indigo-600 font-extrabold">
+                    <span className="text-xs text-[#166534] font-extrabold">
                       20% Commission
                     </span>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-base font-black text-indigo-700">
+                  <div className="text-base font-black text-emerald-800">
                     ₹{l2Income.toLocaleString('en-IN')}
                   </div>
                   <div className="text-[10px] text-slate-400 font-bold uppercase">Earned</div>
@@ -275,7 +275,7 @@ export const TeamView: React.FC = () => {
         <div className="bg-white rounded-3xl p-5 shadow-[0_2px_14px_rgba(0,0,0,0.04)] border border-slate-100 space-y-3.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 text-[#15803d] flex items-center justify-center">
                 <UserPlus size={20} />
               </div>
               <div>
@@ -301,7 +301,7 @@ export const TeamView: React.FC = () => {
                 <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">
                   INVITATION CODE
                 </span>
-                <span className="text-sm font-mono font-black text-[#0047B3]">
+                <span className="text-sm font-mono font-black text-[#15803d]">
                   {user.invitationCode || '883921'}
                 </span>
               </div>
@@ -451,12 +451,12 @@ export const TeamView: React.FC = () => {
         <div className="bg-white rounded-3xl p-5 shadow-[0_2px_14px_rgba(0,0,0,0.04)] border border-slate-100 space-y-3.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Award size={18} className="text-[#0047B3]" />
+              <Award size={18} className="text-[#15803d]" />
               <h4 className="text-sm font-black text-slate-900">Active Team Missions & Bonuses</h4>
             </div>
             <button
               onClick={() => setSubScreen('missions')}
-              className="text-xs font-bold text-[#0047B3] hover:underline flex items-center gap-0.5 cursor-pointer"
+              className="text-xs font-bold text-[#15803d] hover:underline flex items-center gap-0.5 cursor-pointer"
             >
               <span>View Missions</span>
               <ChevronRight size={14} />
@@ -495,7 +495,7 @@ export const TeamView: React.FC = () => {
                     className={`mt-1 px-3 py-1 rounded-xl text-[11px] font-black transition-all cursor-pointer ${
                       isReady
                         ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs animate-pulse'
-                        : 'text-[#0047B3] hover:underline'
+                        : 'text-[#15803d] hover:underline'
                     }`}
                   >
                     {isReady ? 'Claim Now →' : 'See Milestones →'}
@@ -508,7 +508,7 @@ export const TeamView: React.FC = () => {
           {/* Direct CTA button to invite */}
           <button
             onClick={() => setShowInviteModal(true)}
-            className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#0047B3] to-[#003d99] hover:from-[#003d99] hover:to-[#002e73] text-white text-xs font-black flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all cursor-pointer"
+            className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#15803d] via-[#16a34a] to-[#22c55e] hover:from-[#166534] hover:to-[#15803d] text-white text-xs font-black flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all cursor-pointer"
           >
             <UserPlus size={15} />
             <span>Invite Friends to Grow Team</span>
@@ -517,7 +517,7 @@ export const TeamView: React.FC = () => {
 
         {/* How team income works info box */}
         <div className="bg-blue-50/70 border border-blue-200/60 rounded-3xl p-4 flex items-start gap-3">
-          <div className="w-6 h-6 rounded-full bg-blue-100 text-[#0047B3] flex items-center justify-center shrink-0 mt-0.5">
+          <div className="w-6 h-6 rounded-full bg-blue-100 text-[#15803d] flex items-center justify-center shrink-0 mt-0.5">
             <Info size={14} />
           </div>
           <div>

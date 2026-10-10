@@ -64,24 +64,24 @@ export const LiveChatModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="w-full max-w-md h-[560px] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#03190d]/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-md h-[560px] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-emerald-500/20">
         {/* Header */}
-        <div className="bg-[#0047B3] text-white px-4 py-3.5 flex items-center justify-between shadow-sm">
+        <div className="bg-gradient-to-r from-[#14532d] via-[#15803d] to-[#16a34a] text-white px-4 py-3.5 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
               <Bot size={18} className="text-white" />
             </div>
             <div>
-              <div className="text-sm font-bold leading-tight">Pidilite Care 24×7</div>
-              <div className="text-[10px] text-emerald-300 font-medium flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Online
+              <div className="text-sm font-bold leading-tight">Aalay Care 24×7</div>
+              <div className="text-[10px] text-emerald-200 font-medium flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#B2E500] animate-pulse" /> Online
               </div>
             </div>
           </div>
           <button
             onClick={() => setShowLiveChat(false)}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center text-white"
+            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center text-white cursor-pointer"
           >
             <X size={18} />
           </button>
@@ -99,8 +99,8 @@ export const LiveChatModal: React.FC = () => {
               <div
                 className={`w-7 h-7 rounded-full overflow-hidden flex items-center justify-center shrink-0 ${
                   m.sender === 'user'
-                    ? 'border border-blue-200'
-                    : 'bg-[#0047B3] text-white'
+                    ? 'border border-emerald-200'
+                    : 'bg-[#15803d] text-white'
                 }`}
               >
                 {m.sender === 'user' ? (
@@ -119,14 +119,14 @@ export const LiveChatModal: React.FC = () => {
               <div
                 className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 text-xs shadow-xs leading-relaxed ${
                   m.sender === 'user'
-                    ? 'bg-[#0047B3] text-white rounded-tr-xs'
+                    ? 'bg-[#15803d] text-white rounded-tr-xs'
                     : 'bg-white text-slate-800 border border-slate-100 rounded-tl-xs'
                 }`}
               >
                 <div>{m.text}</div>
                 <div
                   className={`text-[9px] mt-1 text-right ${
-                    m.sender === 'user' ? 'text-blue-200' : 'text-slate-400'
+                    m.sender === 'user' ? 'text-emerald-200' : 'text-slate-400'
                   }`}
                 >
                   {m.time}
@@ -143,11 +143,11 @@ export const LiveChatModal: React.FC = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type your message..."
-            className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-[#0047B3]"
+            className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-[#15803d]"
           />
           <button
             type="submit"
-            className="w-10 h-10 rounded-xl bg-[#0047B3] text-white flex items-center justify-center hover:bg-[#003d99] active:scale-95 transition-all shadow-sm"
+            className="w-10 h-10 rounded-xl bg-[#15803d] text-white flex items-center justify-center hover:bg-[#166534] active:scale-95 transition-all shadow-sm cursor-pointer"
           >
             <Send size={16} />
           </button>

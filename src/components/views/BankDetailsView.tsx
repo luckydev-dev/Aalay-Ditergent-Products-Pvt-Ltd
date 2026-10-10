@@ -112,8 +112,8 @@ export const BankDetailsView: React.FC = () => {
           className="rounded-3xl p-5 text-white shadow-xl relative overflow-hidden transition-all duration-300"
           style={{
             background: bankInfo?.themeColor
-              ? `linear-gradient(135deg, ${bankInfo.themeColor} 0%, #001f4d 100%)`
-              : 'linear-gradient(135deg, #0047B3 0%, #001a44 100%)',
+              ? `linear-gradient(135deg, ${bankInfo.themeColor} 0%, #052e16 100%)`
+              : 'linear-gradient(135deg, #15803d 0%, #052e16 100%)',
           }}
         >
           {/* Background watermarks */}
@@ -125,7 +125,7 @@ export const BankDetailsView: React.FC = () => {
             {/* Top row */}
             <div className="flex items-start justify-between">
               <div>
-                <span className="text-[10px] font-bold tracking-widest uppercase text-blue-200/90 block">
+                <span className="text-[10px] font-bold tracking-widest uppercase text-emerald-200/90 block">
                   OFFICIAL WITHDRAWAL ACCOUNT
                 </span>
                 <h3 className="text-base font-black tracking-tight text-white mt-0.5 flex items-center gap-1.5">
@@ -145,7 +145,7 @@ export const BankDetailsView: React.FC = () => {
 
             {/* Middle: Masked / Live Account number */}
             <div className="my-auto">
-              <div className="text-xs text-blue-200/80 font-mono tracking-widest">
+              <div className="text-xs text-emerald-100/90 font-mono tracking-widest">
                 {accountNumber
                   ? accountNumber.length > 8
                     ? `${accountNumber.slice(0, 4)} •••• •••• ${accountNumber.slice(-4)}`
@@ -153,7 +153,7 @@ export const BankDetailsView: React.FC = () => {
                   : '•••• •••• •••• ••••'}
               </div>
               {bankInfo?.branch && (
-                <div className="text-[11px] text-blue-100 font-medium mt-0.5">
+                <div className="text-[11px] text-emerald-200/80 font-medium mt-0.5">
                   Branch: {bankInfo.branch} {bankInfo.city ? `(${bankInfo.city})` : ''}
                 </div>
               )}
@@ -162,7 +162,7 @@ export const BankDetailsView: React.FC = () => {
             {/* Bottom Row */}
             <div className="flex items-end justify-between pt-2 border-t border-white/15">
               <div>
-                <span className="text-[9px] font-bold uppercase tracking-wider text-blue-200/80 block">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-200/80 block">
                   ACCOUNT HOLDER
                 </span>
                 <span className="text-xs font-black tracking-wide text-white uppercase">
@@ -171,7 +171,7 @@ export const BankDetailsView: React.FC = () => {
               </div>
 
               <div className="text-right">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-blue-200/80 block">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-200/80 block">
                   IFSC CODE
                 </span>
                 <span className="text-xs font-mono font-black text-amber-300">
@@ -349,7 +349,7 @@ export const BankDetailsView: React.FC = () => {
           <button
             type="submit"
             disabled={isSaving}
-            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#0047B3] to-[#0055d4] hover:from-[#003894] hover:to-[#0047B3] active:scale-[0.98] text-white font-black text-xs tracking-wide shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2 transition-all disabled:opacity-70"
+            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#15803d] to-[#16a34a] hover:from-[#166534] hover:to-[#15803d] active:scale-[0.98] text-white font-black text-xs tracking-wide shadow-lg shadow-emerald-950/30 flex items-center justify-center gap-2 transition-all disabled:opacity-70 cursor-pointer"
           >
             {isSaving ? (
               <>
@@ -368,7 +368,7 @@ export const BankDetailsView: React.FC = () => {
         {/* Withdrawal rules snippet */}
         <div className="bg-slate-50 rounded-3xl p-4 border border-slate-200/80 space-y-2">
           <div className="flex items-center gap-1.5 text-xs font-extrabold text-slate-800">
-            <ShieldCheck size={15} className="text-[#0047B3]" />
+            <ShieldCheck size={15} className="text-[#15803d]" />
             <span>Bank Linking Policy</span>
           </div>
           <ul className="text-[11px] text-slate-600 space-y-1 list-disc pl-4 leading-relaxed">

@@ -26,7 +26,7 @@ export const AccountRecordView: React.FC = () => {
             onClick={() => setActiveTab('income')}
             className={`flex-1 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
               activeTab === 'income'
-                ? 'bg-[#0047B3] text-white shadow-md'
+                ? 'bg-[#15803d] text-white shadow-md'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -34,7 +34,7 @@ export const AccountRecordView: React.FC = () => {
             <span
               className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                 activeTab === 'income'
-                  ? 'bg-blue-300/30 text-white'
+                  ? 'bg-emerald-300/30 text-white'
                   : 'bg-slate-300 text-slate-700'
               }`}
             >
@@ -46,7 +46,7 @@ export const AccountRecordView: React.FC = () => {
             onClick={() => setActiveTab('withdraw')}
             className={`flex-1 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
               activeTab === 'withdraw'
-                ? 'bg-[#0047B3] text-white shadow-md'
+                ? 'bg-[#15803d] text-white shadow-md'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -54,7 +54,7 @@ export const AccountRecordView: React.FC = () => {
             <span
               className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                 activeTab === 'withdraw'
-                  ? 'bg-blue-300/30 text-white'
+                  ? 'bg-emerald-300/30 text-white'
                   : 'bg-slate-300 text-slate-700'
               }`}
             >

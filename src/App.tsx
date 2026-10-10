@@ -91,13 +91,13 @@ const AppContent: React.FC = () => {
 
   // Full-Screen Branded Database Loader on Startup
   if (isDatabaseLoading) {
-    return <DatabaseSplashLoader />;
+    return <DatabaseSplashLoader imageSrc={user?.avatar} statusText="Syncing verified database..." />;
   }
 
   // Standalone Full-Screen Admin Dashboard Suite (/admin)
   if (subScreen === 'admin' || isAdminRoute) {
     return (
-      <div className="min-h-screen bg-[#071329] text-slate-100 font-['Plus_Jakarta_Sans',sans-serif] w-full max-w-full overflow-x-hidden relative">
+      <div className="min-h-screen bg-[#041a0e] text-slate-100 font-['Plus_Jakarta_Sans',sans-serif] w-full max-w-full overflow-x-hidden relative">
         <AdminDashboardView />
         {toastMessage && (
           <div className="fixed top-6 right-6 z-50 px-4 py-2.5 rounded-2xl bg-slate-900/95 text-white text-xs font-bold shadow-2xl border border-slate-700 backdrop-blur-md flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -112,8 +112,13 @@ const AppContent: React.FC = () => {
   // If user is logged out, show the Auth / Login screen
   if (!user.isLoggedIn) {
     return (
-      <div className="min-h-screen bg-[#072457] flex items-center justify-center sm:p-4">
-        <div className="w-full max-w-md bg-white sm:rounded-[36px] sm:shadow-2xl overflow-hidden min-h-screen sm:min-h-[780px] sm:border-[6px] sm:border-slate-800 flex flex-col justify-between">
+      <div className="min-h-screen bg-[#041a0e] relative overflow-hidden flex items-center justify-center sm:p-4">
+        {/* Ambient Logo-Matching Green Glow / Blur Orbs */}
+        <div className="fixed -top-32 -left-32 w-96 h-96 bg-[#8ED000]/25 rounded-full blur-[100px] pointer-events-none animate-pulse" />
+        <div className="fixed top-1/3 -right-32 w-96 h-96 bg-[#B2E500]/20 rounded-full blur-[110px] pointer-events-none" />
+        <div className="fixed -bottom-32 left-1/4 w-96 h-96 bg-[#15803d]/30 rounded-full blur-[120px] pointer-events-none" />
+
+        <div className="w-full max-w-md bg-white sm:rounded-[36px] sm:shadow-2xl overflow-hidden min-h-screen sm:min-h-[780px] sm:border-[6px] sm:border-[#15803d]/30 relative z-10 flex flex-col justify-between">
           <AuthView />
         </div>
       </div>
@@ -165,9 +170,14 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#061e47] flex justify-center items-start sm:p-4 md:p-6 select-none font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="min-h-screen bg-[#041a0e] relative overflow-hidden flex justify-center items-start sm:p-4 md:p-6 select-none font-['Plus_Jakarta_Sans',sans-serif]">
+      {/* Ambient Logo-Matching Green Glow / Blur Orbs */}
+      <div className="fixed -top-32 -left-32 w-96 h-96 bg-[#8ED000]/25 rounded-full blur-[100px] pointer-events-none animate-pulse" />
+      <div className="fixed top-1/3 -right-32 w-96 h-96 bg-[#B2E500]/20 rounded-full blur-[110px] pointer-events-none" />
+      <div className="fixed -bottom-32 left-1/4 w-96 h-96 bg-[#15803d]/30 rounded-full blur-[120px] pointer-events-none" />
+
       {/* Container Frame */}
-      <div className="w-full max-w-md bg-[#f4f7fb] sm:rounded-[36px] sm:shadow-[0_25px_60px_rgba(0,0,0,0.5)] overflow-hidden min-h-screen sm:min-h-[820px] sm:border-[6px] sm:border-slate-800/90 relative flex flex-col">
+      <div className="w-full max-w-md bg-[#f4f7fb] sm:rounded-[36px] sm:shadow-[0_25px_60px_rgba(4,26,14,0.7)] overflow-hidden min-h-screen sm:min-h-[820px] sm:border-[6px] sm:border-[#15803d]/30 relative z-10 flex flex-col">
         {/* Scrollable Main Content Area */}
         <main className="flex-1 overflow-y-auto relative no-scrollbar">
           {renderCurrentView()}
@@ -184,7 +194,7 @@ const AppContent: React.FC = () => {
 
         {/* Toast Notification Alert */}
         {toastMessage && (
-          <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl bg-slate-900/90 text-white text-xs font-bold shadow-xl backdrop-blur-md flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl bg-[#041a0e]/95 text-white text-xs font-bold shadow-xl border border-emerald-500/30 backdrop-blur-md flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
             <CheckCircle2 size={16} className="text-emerald-400" />
             <span>{toastMessage}</span>
           </div>

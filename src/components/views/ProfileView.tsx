@@ -58,8 +58,8 @@ export const ProfileView: React.FC = () => {
 
   return (
     <div className="min-h-screen pb-24 bg-[#f4f7fb] max-w-md mx-auto">
-      {/* Top Blue Hero Section */}
-      <div className="bg-[#0047B3] text-white pt-6 pb-20 px-5 relative rounded-b-3xl shadow-md">
+      {/* Top Green Hero Section */}
+      <div className="bg-gradient-to-b from-[#14532d] via-[#15803d] to-[#166534] text-white pt-6 pb-20 px-5 relative rounded-b-3xl shadow-md">
         {/* Settings button */}
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl font-black tracking-tight text-white">Profile</h1>
@@ -209,7 +209,7 @@ export const ProfileView: React.FC = () => {
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => setSubScreen('recharge')}
-              className="py-3 rounded-2xl bg-[#0047B3] hover:bg-[#003d99] active:scale-95 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-blue-900/15 transition-all"
+              className="py-3 rounded-2xl bg-[#15803d] hover:bg-[#166534] active:scale-95 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-900/15 transition-all cursor-pointer"
             >
               <ArrowUpRight size={16} />
               <span>Recharge</span>
@@ -217,7 +217,7 @@ export const ProfileView: React.FC = () => {
 
             <button
               onClick={() => setSubScreen('withdraw')}
-              className="py-3 rounded-2xl bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 text-[#0047B3] font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all"
+              className="py-3 rounded-2xl bg-white hover:bg-slate-50 active:scale-95 border-2 border-slate-200 text-[#15803d] font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
             >
               <ArrowDownLeft size={16} />
               <span>Withdraw</span>
@@ -260,9 +260,9 @@ export const ProfileView: React.FC = () => {
           {/* Orders */}
           <button
             onClick={() => setSubScreen('purchase-record')}
-            className="flex flex-col items-center justify-center p-2 flex-1 active:scale-95 transition-transform"
+            className="flex flex-col items-center justify-center p-2 flex-1 active:scale-95 transition-transform cursor-pointer"
           >
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center mb-1.5 shadow-xs">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center mb-1.5 shadow-xs">
               <Briefcase size={20} className="stroke-[2.2px]" />
             </div>
             <span className="text-xs font-bold text-slate-700">Orders</span>
@@ -271,9 +271,9 @@ export const ProfileView: React.FC = () => {
           {/* Treasure */}
           <button
             onClick={() => setActiveTab('spin')}
-            className="flex flex-col items-center justify-center p-2 flex-1 active:scale-95 transition-transform"
+            className="flex flex-col items-center justify-center p-2 flex-1 active:scale-95 transition-transform cursor-pointer"
           >
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center mb-1.5 shadow-xs">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center mb-1.5 shadow-xs">
               <Gift size={20} className="stroke-[2.2px]" />
             </div>
             <span className="text-xs font-bold text-slate-700">Treasure</span>
@@ -282,9 +282,9 @@ export const ProfileView: React.FC = () => {
           {/* About */}
           <button
             onClick={() => setSubScreen('about-us')}
-            className="flex flex-col items-center justify-center p-2 flex-1 active:scale-95 transition-transform"
+            className="flex flex-col items-center justify-center p-2 flex-1 active:scale-95 transition-transform cursor-pointer"
           >
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center mb-1.5 shadow-xs">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center mb-1.5 shadow-xs">
               <Info size={20} className="stroke-[2.2px]" />
             </div>
             <span className="text-xs font-bold text-slate-700">About</span>
@@ -293,9 +293,9 @@ export const ProfileView: React.FC = () => {
           {/* Bank Card */}
           <button
             onClick={() => setSubScreen('bank-details')}
-            className="flex flex-col items-center justify-center p-2 flex-1 active:scale-95 transition-transform"
+            className="flex flex-col items-center justify-center p-2 flex-1 active:scale-95 transition-transform cursor-pointer"
           >
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center mb-1.5 shadow-xs">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center mb-1.5 shadow-xs">
               <Building2 size={20} className="stroke-[2.2px]" />
             </div>
             <span className="text-xs font-bold text-slate-700">Bank Card</span>
@@ -335,10 +335,10 @@ export const ProfileView: React.FC = () => {
           {/* 1. Change Password */}
           <button
             onClick={() => setSubScreen('security')}
-            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100/80 rounded-2xl"
+            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100/80 rounded-2xl cursor-pointer"
           >
             <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-[#0047B3] flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center shrink-0">
                 <Lock size={20} />
               </div>
               <div className="text-left">
@@ -356,10 +356,10 @@ export const ProfileView: React.FC = () => {
           {/* 2. Information */}
           <button
             onClick={() => setSubScreen('security')}
-            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100/80 rounded-2xl"
+            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100/80 rounded-2xl cursor-pointer"
           >
             <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center shrink-0">
                 <UserCheck size={20} />
               </div>
               <div className="text-left">
@@ -377,10 +377,10 @@ export const ProfileView: React.FC = () => {
           {/* 3. Balance Details */}
           <button
             onClick={() => setSubScreen('account-record')}
-            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100/80 rounded-2xl"
+            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100/80 rounded-2xl cursor-pointer"
           >
             <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center shrink-0">
                 <TrendingUp size={20} />
               </div>
               <div className="text-left">
@@ -398,10 +398,10 @@ export const ProfileView: React.FC = () => {
           {/* 3. Deposit Details */}
           <button
             onClick={() => setSubScreen('deposit-history')}
-            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100/80 rounded-2xl"
+            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100/80 rounded-2xl cursor-pointer"
           >
             <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center shrink-0">
                 <Wallet size={20} />
               </div>
               <div className="text-left">
@@ -419,10 +419,10 @@ export const ProfileView: React.FC = () => {
           {/* 4. Withdrawal Details */}
           <button
             onClick={() => setSubScreen('withdrawal-history')}
-            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100/80 rounded-2xl"
+            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100/80 rounded-2xl cursor-pointer"
           >
             <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center shrink-0">
                 <History size={20} />
               </div>
               <div className="text-left">
@@ -440,10 +440,10 @@ export const ProfileView: React.FC = () => {
           {/* 4. Notification Center */}
           <button
             onClick={() => setSubScreen('notifications')}
-            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100/80 rounded-2xl"
+            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100/80 rounded-2xl cursor-pointer"
           >
             <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center shrink-0">
                 <Bell size={20} />
               </div>
               <div className="text-left">
@@ -461,10 +461,10 @@ export const ProfileView: React.FC = () => {
           {/* 5. App Download */}
           <button
             onClick={handleDownloadApp}
-            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100/80 rounded-2xl"
+            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-100/80 rounded-2xl cursor-pointer"
           >
             <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center shrink-0">
                 <Download size={20} />
               </div>
               <div className="text-left">

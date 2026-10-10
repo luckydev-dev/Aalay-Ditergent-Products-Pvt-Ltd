@@ -1,0 +1,60 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User account profile and financial credentials",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 20 },
+        "avatar": { "type": "string", "maxLength": 500 },
+        "role": { "type": "string", "enum": ["user", "owner"] },
+        "balance": { "type": "number" },
+        "vipLevel": { "type": "string", "maxLength": 20 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "name", "phone", "role"]
+    },
+    "ProductPlan": {
+      "title": "ProductPlan",
+      "description": "Catalog detergent investment plans",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 100 },
+        "price": { "type": "number" },
+        "dailyIncome": { "type": "number" },
+        "durationDays": { "type": "number" }
+      },
+      "required": ["id", "name", "price", "dailyIncome", "durationDays"]
+    },
+    "WithdrawalRecord": {
+      "title": "WithdrawalRecord",
+      "description": "User withdrawal request and settlement status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "completed", "rejected"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "uid", "amount", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile documents isolated by authenticated user ID"
+    },
+    "/plans/{planId}": {
+      "schema": { "$ref": "#/entities/ProductPlan" },
+      "description": "Investment plans manageable only by verified owners"
+    },
+    "/withdrawals/{withdrawalId}": {
+      "schema": { "$ref": "#/entities/WithdrawalRecord" },
+      "description": "Withdrawal ledger with admin-only settlement transitions"
+    }
+  }
+}

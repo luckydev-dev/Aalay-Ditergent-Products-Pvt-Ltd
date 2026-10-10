@@ -13,12 +13,12 @@ export const CustomerServiceSheet: React.FC = () => {
   };
 
   const handleJoinTelegram = () => {
-    window.open('https://t.me/pidilite_official', '_blank');
+    window.open('https://t.me/aaley_official', '_blank');
     setShowCustomerService(false);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#03190d]/75 backdrop-blur-sm animate-in fade-in duration-200">
       {/* Click outside backdrop */}
       <div
         className="absolute inset-0"
@@ -36,7 +36,7 @@ export const CustomerServiceSheet: React.FC = () => {
           </h3>
           <button
             onClick={() => setShowCustomerService(false)}
-            className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 active:scale-95 transition-all"
+            className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 active:scale-95 transition-all cursor-pointer"
             aria-label="Close"
           >
             <X size={18} />
@@ -44,9 +44,9 @@ export const CustomerServiceSheet: React.FC = () => {
         </div>
 
         {/* Action Row 1: Customer Care */}
-        <div className="bg-slate-50/80 border border-slate-100/80 rounded-2xl p-3.5 mb-3 flex items-center justify-between gap-3 shadow-xs">
+        <div className="bg-emerald-50/50 border border-emerald-100/70 rounded-2xl p-3.5 mb-3 flex items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-[#0047B3] flex items-center justify-center text-white shrink-0 shadow-sm">
+            <div className="w-11 h-11 rounded-2xl bg-[#15803d] flex items-center justify-center text-white shrink-0 shadow-sm">
               <Headset size={22} />
             </div>
             <div>
@@ -60,14 +60,14 @@ export const CustomerServiceSheet: React.FC = () => {
           </div>
           <button
             onClick={handleOpenLiveChat}
-            className="px-4 py-2 rounded-xl bg-[#0047B3] hover:bg-[#003d99] active:scale-95 text-white font-bold text-xs shadow-sm transition-all"
+            className="px-4 py-2 rounded-xl bg-[#15803d] hover:bg-[#166534] active:scale-95 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
           >
             Chat
           </button>
         </div>
 
         {/* Action Row 2: Official Channel */}
-        <div className="bg-slate-50/80 border border-slate-100/80 rounded-2xl p-3.5 mb-2 flex items-center justify-between gap-3 shadow-xs">
+        <div className="bg-emerald-50/50 border border-emerald-100/70 rounded-2xl p-3.5 mb-2 flex items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-[#0088cc] flex items-center justify-center text-white shrink-0 shadow-sm">
               <Send size={20} className="fill-white" />
@@ -83,7 +83,7 @@ export const CustomerServiceSheet: React.FC = () => {
           </div>
           <button
             onClick={handleJoinTelegram}
-            className="px-4 py-2 rounded-xl bg-[#0047B3] hover:bg-[#003d99] active:scale-95 text-white font-bold text-xs shadow-sm transition-all"
+            className="px-4 py-2 rounded-xl bg-[#15803d] hover:bg-[#166534] active:scale-95 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
           >
             Join
           </button>

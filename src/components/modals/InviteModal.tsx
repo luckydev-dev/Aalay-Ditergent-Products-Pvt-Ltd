@@ -18,17 +18,20 @@ export const InviteModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl relative border border-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#03190d]/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl relative border border-emerald-500/20 overflow-hidden">
+        {/* Ambient decorative green blur */}
+        <div className="absolute -top-12 -right-12 w-36 h-36 bg-[#8ED000]/20 rounded-full blur-2xl pointer-events-none" />
+
         <button
           onClick={() => setShowInviteModal(false)}
-          className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200"
+          className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer z-10"
         >
           <X size={18} />
         </button>
 
-        <div className="text-center mb-4">
-          <div className="w-12 h-12 rounded-2xl bg-[#0047B3]/10 text-[#0047B3] flex items-center justify-center mx-auto mb-2">
+        <div className="text-center mb-4 relative z-10">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center mx-auto mb-2 shadow-xs">
             <Users size={24} />
           </div>
           <h3 className="text-xl font-black text-slate-900 tracking-tight">
@@ -40,7 +43,7 @@ export const InviteModal: React.FC = () => {
         </div>
 
         {/* QR Code Graphic Box */}
-        <div className="w-36 h-36 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-2 mx-auto mb-4 flex items-center justify-center">
+        <div className="w-36 h-36 bg-slate-50 border-2 border-dashed border-emerald-200/80 rounded-2xl p-2 mx-auto mb-4 flex items-center justify-center relative z-10">
           <svg viewBox="0 0 100 100" className="w-full h-full text-slate-800">
             {/* Simulated QR Pattern */}
             <rect x="10" y="10" width="24" height="24" fill="currentColor" rx="2" />
@@ -59,7 +62,7 @@ export const InviteModal: React.FC = () => {
             <rect x="42" y="28" width="10" height="6" fill="currentColor" />
             <rect x="15" y="42" width="6" height="16" fill="currentColor" />
             <rect x="28" y="42" width="10" height="6" fill="currentColor" />
-            <rect x="44" y="44" width="12" height="12" fill="#0047B3" rx="2" />
+            <rect x="44" y="44" width="12" height="12" fill="#15803d" rx="2" />
             <rect x="66" y="42" width="20" height="6" fill="currentColor" />
             <rect x="42" y="66" width="6" height="20" fill="currentColor" />
             <rect x="56" y="66" width="30" height="6" fill="currentColor" />
@@ -68,11 +71,11 @@ export const InviteModal: React.FC = () => {
         </div>
 
         {/* Invitation Code Display */}
-        <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-3 mb-4 text-center">
+        <div className="bg-emerald-50/70 border border-emerald-100 rounded-xl p-3 mb-4 text-center relative z-10">
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
             Your Invitation Code
           </div>
-          <div className="text-2xl font-black text-[#0047B3] tracking-widest mt-0.5">
+          <div className="text-2xl font-black text-[#15803d] tracking-widest mt-0.5">
             {user.invitationCode}
           </div>
         </div>
@@ -80,7 +83,7 @@ export const InviteModal: React.FC = () => {
         {/* Copy Link Button */}
         <button
           onClick={handleCopy}
-          className="w-full py-3.5 px-4 rounded-xl bg-[#0047B3] hover:bg-[#003d99] active:scale-[0.98] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all mb-2"
+          className="w-full py-3.5 px-4 rounded-xl bg-[#15803d] hover:bg-[#166534] active:scale-[0.98] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-900/20 transition-all mb-2 cursor-pointer relative z-10"
         >
           {copied ? <Check size={16} /> : <Copy size={16} />}
           <span>{copied ? 'Link Copied!' : 'Copy Invitation Link'}</span>

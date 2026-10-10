@@ -20,10 +20,10 @@ export const SubHeader: React.FC<SubHeaderProps> = ({ title, onBack, rightAction
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-[#0047B3] text-white h-14 px-4 flex items-center justify-between shadow-md">
+    <header className="sticky top-0 z-30 bg-gradient-to-r from-[#14532d] via-[#15803d] to-[#16a34a] text-white h-14 px-4 flex items-center justify-between shadow-md">
       <button
         onClick={handleBack}
-        className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center hover:bg-white/10 active:scale-95 transition-all text-white"
+        className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center hover:bg-white/10 active:scale-95 transition-all text-white cursor-pointer"
         aria-label="Go Back"
       >
         <ArrowLeft size={22} className="stroke-[2.5px]" />

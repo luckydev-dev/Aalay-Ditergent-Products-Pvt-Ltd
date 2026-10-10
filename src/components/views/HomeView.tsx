@@ -29,9 +29,9 @@ export const HomeView: React.FC = () => {
         {/* Recharge */}
         <button
           onClick={() => setSubScreen('recharge')}
-          className="flex flex-col items-center justify-center flex-1 py-1 active:scale-95 transition-transform"
+          className="flex flex-col items-center justify-center flex-1 py-1 active:scale-95 transition-transform cursor-pointer"
         >
-          <div className="w-11 h-11 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center mb-1 shadow-xs">
+          <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center mb-1 shadow-xs">
             <CreditCard size={20} className="stroke-[2.2px]" />
           </div>
           <span className="text-[11px] font-bold text-slate-700">Recharge</span>
@@ -40,9 +40,9 @@ export const HomeView: React.FC = () => {
         {/* Withdraw */}
         <button
           onClick={() => setSubScreen('withdraw')}
-          className="flex flex-col items-center justify-center flex-1 py-1 active:scale-95 transition-transform"
+          className="flex flex-col items-center justify-center flex-1 py-1 active:scale-95 transition-transform cursor-pointer"
         >
-          <div className="w-11 h-11 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center mb-1 shadow-xs">
+          <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center mb-1 shadow-xs">
             <Download size={20} className="stroke-[2.2px]" />
           </div>
           <span className="text-[11px] font-bold text-slate-700">Withdraw</span>
@@ -51,12 +51,12 @@ export const HomeView: React.FC = () => {
         {/* Mission (With 'New' badge) */}
         <button
           onClick={() => setSubScreen('missions')}
-          className="flex flex-col items-center justify-center flex-1 py-1 relative active:scale-95 transition-transform"
+          className="flex flex-col items-center justify-center flex-1 py-1 relative active:scale-95 transition-transform cursor-pointer"
         >
           <span className="absolute -top-1.5 right-2 px-1.5 py-0.2 bg-rose-500 text-white text-[9px] font-black rounded-full shadow-xs">
             New
           </span>
-          <div className="w-11 h-11 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center mb-1 shadow-xs">
+          <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center mb-1 shadow-xs">
             <ClipboardList size={20} className="stroke-[2.2px]" />
           </div>
           <span className="text-[11px] font-bold text-slate-700">Mission</span>
@@ -65,9 +65,9 @@ export const HomeView: React.FC = () => {
         {/* Invite */}
         <button
           onClick={() => setShowInviteModal(true)}
-          className="flex flex-col items-center justify-center flex-1 py-1 active:scale-95 transition-transform"
+          className="flex flex-col items-center justify-center flex-1 py-1 active:scale-95 transition-transform cursor-pointer"
         >
-          <div className="w-11 h-11 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center mb-1 shadow-xs">
+          <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center mb-1 shadow-xs">
             <QrCode size={20} className="stroke-[2.2px]" />
           </div>
           <span className="text-[11px] font-bold text-slate-700">Invite</span>
@@ -76,9 +76,9 @@ export const HomeView: React.FC = () => {
         {/* Online Customer Service */}
         <button
           onClick={() => setShowCustomerService(true)}
-          className="flex flex-col items-center justify-center flex-1 py-1 active:scale-95 transition-transform"
+          className="flex flex-col items-center justify-center flex-1 py-1 active:scale-95 transition-transform cursor-pointer"
         >
-          <div className="w-11 h-11 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center mb-1 shadow-xs">
+          <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center mb-1 shadow-xs">
             <Headset size={20} className="stroke-[2.2px]" />
           </div>
           <span className="text-[11px] font-bold text-slate-700">Online</span>
@@ -89,9 +89,9 @@ export const HomeView: React.FC = () => {
       <div className="bg-slate-100/80 p-1.5 rounded-2xl flex items-center gap-1 border border-slate-200/60 shadow-inner">
         <button
           onClick={() => setActivePlanTab('normal')}
-          className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 ${
+          className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 cursor-pointer ${
             activePlanTab === 'normal'
-              ? 'bg-[#0047B3] text-white shadow-md'
+              ? 'bg-[#15803d] text-white shadow-md'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
@@ -99,9 +99,9 @@ export const HomeView: React.FC = () => {
         </button>
         <button
           onClick={() => setActivePlanTab('vip')}
-          className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 ${
+          className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 cursor-pointer ${
             activePlanTab === 'vip'
-              ? 'bg-[#0047B3] text-white shadow-md'
+              ? 'bg-[#15803d] text-white shadow-md'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
@@ -113,7 +113,7 @@ export const HomeView: React.FC = () => {
       <div className="space-y-4">
         {displayPlans.length === 0 ? (
           <div className="bg-white rounded-3xl p-8 text-center shadow-[0_2px_14px_rgba(0,0,0,0.04)] border border-slate-100">
-            <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#0047B3] flex items-center justify-center mx-auto mb-3">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-[#15803d] flex items-center justify-center mx-auto mb-3">
               <Package size={26} />
             </div>
             <h4 className="text-base font-extrabold text-slate-900 mb-1">
@@ -134,7 +134,7 @@ export const HomeView: React.FC = () => {
                 <div
                   className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-extrabold uppercase tracking-wider text-white shadow-xs ${
                     plan.tagType === 'popular'
-                      ? 'bg-gradient-to-r from-blue-600 to-[#0047B3]'
+                      ? 'bg-gradient-to-r from-emerald-600 to-[#15803d]'
                       : 'bg-gradient-to-r from-amber-500 to-amber-600'
                   }`}
                 >
@@ -148,7 +148,7 @@ export const HomeView: React.FC = () => {
                   {plan.name}
                 </h3>
                 <div className="flex items-baseline gap-1 mt-0.5">
-                  <span className="text-xl font-black text-[#0047B3] tracking-tight">
+                  <span className="text-xl font-black text-[#15803d] tracking-tight">
                     ₹{plan.price.toLocaleString('en-IN')}
                   </span>
                   <span className="text-xs font-semibold text-slate-400">
@@ -169,7 +169,7 @@ export const HomeView: React.FC = () => {
                   {/* Daily Return */}
                   <div className="bg-slate-50/90 rounded-2xl p-2.5 flex items-center justify-between border border-slate-100/80">
                     <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                      <BarChart3 size={15} className="text-[#0047B3]" />
+                      <BarChart3 size={15} className="text-[#15803d]" />
                       <span>Daily</span>
                     </div>
                     <span className="text-sm font-extrabold text-slate-900">
@@ -183,7 +183,7 @@ export const HomeView: React.FC = () => {
                       <Coins size={15} className="text-amber-500" />
                       <span>Total</span>
                     </div>
-                    <span className="text-sm font-black text-[#0047B3]">
+                    <span className="text-sm font-black text-[#15803d]">
                       ₹{plan.totalRevenue.toLocaleString('en-IN')}
                     </span>
                   </div>
@@ -193,7 +193,7 @@ export const HomeView: React.FC = () => {
               {/* Buy Now Button */}
               <button
                 onClick={() => buyPlan(plan.id)}
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#0047B3] to-[#005cdb] hover:from-[#003d99] hover:to-[#004ea8] active:scale-[0.98] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md shadow-blue-900/15 transition-all"
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#15803d] via-[#16a34a] to-[#22c55e] hover:from-[#166534] hover:to-[#15803d] active:scale-[0.98] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md shadow-emerald-900/15 transition-all cursor-pointer"
               >
                 <ShoppingCart size={17} />
                 <span>Buy Now</span>

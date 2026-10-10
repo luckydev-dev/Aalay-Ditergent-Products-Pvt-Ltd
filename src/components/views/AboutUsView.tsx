@@ -7,15 +7,16 @@ export const AboutUsView: React.FC = () => {
     <div className="min-h-screen pb-24 bg-[#f4f7fb] max-w-md mx-auto">
       <SubHeader title="About Us" />
 
-      {/* Top Blue Hero */}
-      <div className="bg-[#25208F] text-white pt-6 pb-16 px-6 text-center rounded-b-3xl">
-        <h2 className="text-3xl font-black tracking-tight text-white mb-2">
+      {/* Top Green Hero */}
+      <div className="bg-gradient-to-b from-[#14532d] via-[#15803d] to-[#166534] text-white pt-6 pb-16 px-6 text-center rounded-b-3xl relative overflow-hidden">
+        <div className="absolute -top-10 -right-10 w-44 h-44 bg-[#B2E500]/20 rounded-full blur-2xl pointer-events-none" />
+        <h2 className="text-3xl font-black tracking-tight text-white mb-2 relative z-10">
           AALAY
         </h2>
-        <p className="text-xs text-blue-100 max-w-xs mx-auto leading-relaxed mb-4">
+        <p className="text-xs text-emerald-100 max-w-xs mx-auto leading-relaxed mb-4 relative z-10">
           A premier Indian detergent company offering powerful washing powders and long-lasting detergent cake soaps.
         </p>
-        <span className="inline-block px-4 py-1.5 rounded-full bg-[#8ED000] text-[10px] font-black uppercase tracking-wider text-[#17145F]">
+        <span className="inline-block px-4 py-1.5 rounded-full bg-[#8ED000] text-[10px] font-black uppercase tracking-wider text-[#0a3d1b] relative z-10 shadow-sm">
           ABOUT THE BRAND
         </span>
       </div>
@@ -52,7 +53,7 @@ export const AboutUsView: React.FC = () => {
           {/* Section 3: Community */}
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm font-black text-slate-900">
-              <Users size={18} className="text-[#25208F]" />
+              <Users size={18} className="text-[#15803d]" />
               <span>Community</span>
             </div>
             <p className="text-xs text-slate-500 leading-relaxed pl-6 mb-2">
@@ -63,7 +64,7 @@ export const AboutUsView: React.FC = () => {
               href="https://t.me/aaley_official"
               target="_blank"
               rel="noreferrer"
-              className="w-full py-3.5 rounded-2xl bg-[#25208F] hover:bg-[#17145F] active:scale-[0.98] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-blue-900/15 transition-all"
+              className="w-full py-3.5 rounded-2xl bg-[#15803d] hover:bg-[#166534] active:scale-[0.98] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-900/20 transition-all cursor-pointer"
             >
               <Send size={16} className="fill-white" />
               <span>Join Telegram Channel</span>

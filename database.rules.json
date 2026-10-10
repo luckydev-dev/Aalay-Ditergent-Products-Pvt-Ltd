@@ -1,0 +1,102 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "admins": {
+      ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
+      ".write": false
+    },
+
+    "config": {
+      "plans": {
+        ".read": true,
+        ".write": true
+      },
+      "gateway": {
+        ".read": true,
+        ".write": "auth != null || root.child('admins').child(auth.uid).val() === true"
+      },
+      "onesignal": {
+        ".read": true,
+        ".write": "auth != null || root.child('admins').child(auth.uid).val() === true"
+      }
+    },
+
+    "plans": {
+      ".read": true,
+      ".write": true
+    },
+
+    "users": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('admins').child(auth.uid).val() === true)",
+        ".write": "auth != null && (auth.uid === $uid || root.child('admins').child(auth.uid).val() === true)",
+        
+        "balance": {
+          ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+          ".validate": "newData.isNumber() && newData.val() >= 0"
+        },
+        "role": {
+          ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+          ".validate": "newData.isString() && (newData.val() === 'user' || newData.val() === 'owner')"
+        },
+        "totalRecharge": {
+          ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+          ".validate": "newData.isNumber() && newData.val() >= 0"
+        },
+        "name": {
+          ".validate": "newData.isString() && newData.val().length <= 100"
+        },
+        "phone": {
+          ".validate": "newData.isString() && newData.val().length <= 20"
+        },
+        "avatar": {
+          ".validate": "newData.isString() && newData.val().length <= 500"
+        }
+      }
+    },
+
+    "recharge_requests": {
+      ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
+      "$requestId": {
+        ".read": "auth != null && (data.child('uid').val() === auth.uid || root.child('admins').child(auth.uid).val() === true)",
+        ".write": "auth != null && (root.child('admins').child(auth.uid).val() === true || (!data.exists() && newData.child('uid').val() === auth.uid && newData.child('status').val() === 'pending'))",
+        ".validate": "newData.hasChildren(['uid', 'amount', 'status']) && newData.child('amount').isNumber() && newData.child('amount').val() > 0"
+      }
+    },
+
+    "withdrawals": {
+      ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
+      "$withdrawalId": {
+        ".read": "auth != null && (data.child('uid').val() === auth.uid || root.child('admins').child(auth.uid).val() === true)",
+        ".write": "auth != null && (root.child('admins').child(auth.uid).val() === true || (!data.exists() && newData.child('uid').val() === auth.uid && newData.child('status').val() === 'pending'))",
+        ".validate": "newData.hasChildren(['uid', 'amount', 'status']) && newData.child('amount').isNumber() && newData.child('amount').val() >= 100"
+      }
+    },
+
+    "transactions": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('admins').child(auth.uid).val() === true)",
+        ".write": "auth != null && (auth.uid === $uid || root.child('admins').child(auth.uid).val() === true)"
+      }
+    },
+
+    "orders": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('admins').child(auth.uid).val() === true)",
+        ".write": "auth != null && (auth.uid === $uid || root.child('admins').child(auth.uid).val() === true)"
+      }
+    },
+
+    "notifications": {
+      ".read": "auth != null",
+      ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+    },
+
+    "system_broadcasts": {
+      ".read": true,
+      ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+    }
+  }
+}
