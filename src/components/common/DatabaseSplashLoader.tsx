@@ -1,78 +1,64 @@
 import React from 'react';
-import { Database, ShieldCheck } from 'lucide-react';
+import { Database, ShieldCheck, Factory } from 'lucide-react';
 
 interface DatabaseSplashLoaderProps {
   statusText?: string;
   imageSrc?: string;
 }
 
-const DEFAULT_PROFILE_IMAGE = 'https://i.ibb.co/JWBdHWpv/profile-picture.png';
-
 export const DatabaseSplashLoader: React.FC<DatabaseSplashLoaderProps> = ({
-  statusText = 'Loading...',
-  imageSrc = DEFAULT_PROFILE_IMAGE,
+  statusText = 'Loading verified platform state...',
 }) => {
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#031f11] text-white p-6 select-none overflow-hidden font-['Plus_Jakarta_Sans',sans-serif]">
-      {/* Ambient Logo-Matching Green Blur Glow Orbs */}
-      <div className="absolute w-96 h-96 -top-20 -left-20 bg-[#8ED000]/20 rounded-full blur-[100px] pointer-events-none animate-pulse" />
-      <div className="absolute w-96 h-96 -bottom-20 -right-20 bg-[#15803d]/30 rounded-full blur-[120px] pointer-events-none animate-pulse" />
-      <div className="absolute w-64 h-64 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#B2E500]/10 rounded-full blur-[80px] pointer-events-none" />
+    <div className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-[#0B0E14] text-white p-6 select-none overflow-hidden font-['Plus_Jakarta_Sans',sans-serif]">
+      {/* Ambient Minimalist Glow Orbs */}
+      <div className="absolute w-80 h-80 -top-20 -left-20 bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute w-80 h-80 -bottom-20 -right-20 bg-amber-500/10 rounded-full blur-[100px] pointer-events-none" />
 
       {/* Main Container */}
       <div className="relative flex flex-col items-center text-center max-w-sm w-full z-10 animate-in fade-in duration-300">
-        {/* Simple Profile Picture Emblem */}
+        {/* Sleek Dark Minimalist Brand Logo Emblem */}
         <div className="relative mb-6">
-          {/* Subtle Outer Glow Ring */}
-          <div className="absolute -inset-2.5 rounded-full bg-gradient-to-tr from-emerald-500 via-lime-400 to-emerald-600 opacity-60 blur-md animate-pulse" />
+          <div className="absolute -inset-3 rounded-3xl bg-gradient-to-tr from-emerald-500/30 via-emerald-400/20 to-amber-500/30 blur-xl opacity-70 animate-pulse" />
           
-          {/* Outer Border */}
-          <div className="relative w-28 h-28 rounded-full p-1 bg-gradient-to-br from-emerald-400 to-lime-300 shadow-2xl">
-            {/* Inner White Frame */}
-            <div className="w-full h-full rounded-full bg-white p-0.5 overflow-hidden flex items-center justify-center">
-              <img
-                src={imageSrc}
-                alt="Aalay Profile"
-                className="w-full h-full object-cover rounded-full"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = DEFAULT_PROFILE_IMAGE;
-                }}
-              />
+          <div className="relative w-20 h-20 rounded-3xl p-0.5 bg-gradient-to-br from-emerald-400 via-emerald-500 to-amber-500 shadow-2xl">
+            <div className="w-full h-full rounded-[22px] bg-[#0F141C] flex items-center justify-center text-emerald-400">
+              <Factory size={38} className="stroke-[2.2]" />
             </div>
           </div>
         </div>
 
         {/* Brand Title */}
-        <h1 className="text-2xl font-black tracking-tight text-white mb-1">
+        <h1 className="text-xl font-black tracking-tight text-white mb-1 uppercase">
           AALAY ENTERPRISE
         </h1>
-        <p className="text-xs font-semibold text-emerald-300/80 mb-7">
-          Detergent Cake & High-Yield Rewards
+        <p className="text-xs font-medium text-slate-400 mb-8">
+          Industrial Detergent Manufacturing Platform
         </p>
 
-        {/* Simple Status & Progress Line */}
-        <div className="w-full max-w-xs bg-[#052b17]/80 border border-emerald-500/25 rounded-2xl p-4 shadow-xl backdrop-blur-md mb-6">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-100 mb-2.5 px-0.5">
-            <span className="text-emerald-200">{statusText}</span>
-            <span className="w-2 h-2 rounded-full bg-lime-400 animate-ping" />
+        {/* Minimalist Progress Bar Indicator */}
+        <div className="w-full max-w-xs bg-[#151A23] border border-slate-800 rounded-2xl p-4 shadow-2xl backdrop-blur-md mb-6">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-200 mb-2.5 px-0.5">
+            <span className="text-slate-300 font-medium text-[11px]">{statusText}</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
           </div>
 
-          {/* Minimal shimmer progress bar */}
-          <div className="w-full h-1.5 bg-emerald-950/90 rounded-full overflow-hidden relative">
-            <div className="h-full bg-gradient-to-r from-emerald-500 via-lime-400 to-emerald-400 rounded-full w-2/3 animate-[shimmer_1.4s_infinite]" />
+          {/* Smooth subtle progress bar */}
+          <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden relative">
+            <div className="h-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-amber-400 rounded-full w-3/4 animate-[shimmer_1.5s_infinite]" />
           </div>
         </div>
 
         {/* Verified Security Badges */}
-        <div className="flex items-center gap-3 text-[11px] font-bold text-emerald-300/70">
+        <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-400">
           <div className="flex items-center gap-1.5">
             <Database size={13} className="text-emerald-400" />
-            <span>Database Connected</span>
+            <span>Encrypted Sync</span>
           </div>
-          <span className="text-emerald-700">•</span>
+          <span className="text-slate-700">•</span>
           <div className="flex items-center gap-1.5">
-            <ShieldCheck size={13} className="text-lime-400" />
-            <span>Encrypted Session</span>
+            <ShieldCheck size={13} className="text-amber-400" />
+            <span>Secure System</span>
           </div>
         </div>
       </div>

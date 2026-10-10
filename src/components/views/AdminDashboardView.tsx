@@ -50,6 +50,7 @@ import {
   ToggleRight,
   Radio,
   EyeOff,
+  Gift,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ProductImage } from '../common/ProductImage';
@@ -89,12 +90,16 @@ export const AdminDashboardView: React.FC = () => {
     setSubScreen,
     setUserRole,
     updateUserRoleInDb,
+    updateUserVipLevelInDb,
     adjustUserBalanceInDb,
     approveWithdrawalInDb,
     rejectWithdrawalInDb,
     broadcastSystemNotice,
     showToast,
     plans,
+    giftCodes,
+    createGiftCode,
+    deleteGiftCode,
     updatePlan,
     addNewPlan,
     deletePlan,
@@ -105,7 +110,13 @@ export const AdminDashboardView: React.FC = () => {
   } = useApp();
 
   // Navigation tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'recharges' | 'withdrawals' | 'products' | 'broadcast' | 'settings' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'recharges' | 'withdrawals' | 'products' | 'giftcodes' | 'broadcast' | 'settings' | 'audit'>('overview');
+  // Gift code creation form state
+  const [newCodeName, setNewCodeName] = useState<string>('AALAY100');
+  const [newCodeReward, setNewCodeReward] = useState<string>('100');
+  const [newCodeMaxClaims, setNewCodeMaxClaims] = useState<string>('500');
+  const [newCodeExpiry, setNewCodeExpiry] = useState<string>('');
+
   // Recharges management filter & modal state
   const [rechargeFilter, setRechargeFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [rechargeSearch, setRechargeSearch] = useState<string>('');
@@ -159,6 +170,10 @@ export const AdminDashboardView: React.FC = () => {
   const [adjustAmountInput, setAdjustAmountInput] = useState<string>('500');
   const [adjustReasonInput, setAdjustReasonInput] = useState<string>('Management Wallet Adjustment');
 
+  // VIP Level adjustment modal
+  const [selectedUserForVip, setSelectedUserForVip] = useState<SystemUserItem | null>(null);
+  const [vipLevelSelect, setVipLevelSelect] = useState<string>('VIP 1');
+
   // Custom Confirmation Modals State
   const [planToDelete, setPlanToDelete] = useState<ProductPlan | null>(null);
   const [isResetCatalogModalOpen, setIsResetCatalogModalOpen] = useState<boolean>(false);
@@ -167,6 +182,7 @@ export const AdminDashboardView: React.FC = () => {
 
   // Rupayex Gateway integration states
   const [rupayexBalance, setRupayexBalance] = useState<number | null>(null);
+  const [rupayexBalanceError, setRupayexBalanceError] = useState<string | null>(null);
   const [isLoadingRupayexBalance, setIsLoadingRupayexBalance] = useState<boolean>(false);
   const [isTokenModalOpen, setIsTokenModalOpen] = useState<boolean>(false);
   const [rupayexTokenInput, setRupayexTokenInput] = useState<string>('');
@@ -202,18 +218,38 @@ export const AdminDashboardView: React.FC = () => {
 
   const fetchRupayexBalance = async () => {
     setIsLoadingRupayexBalance(true);
+    setRupayexBalanceError(null);
     try {
       const res = await fetch('/api/rupayex/wallet-balance', {
         headers: { 'x-admin-key': 'aalay_admin_secure_key_2026' },
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && (data.status === true || typeof data.balance === 'number')) {
-          setRupayexBalance(Number(data.balance) || 0);
+      const data = await res.json();
+      if (res.ok && data) {
+        if (typeof data.balance === 'number') {
+          setRupayexBalance(data.balance);
+        } else {
+          const raw = data.raw || data;
+          const extracted =
+            raw?.balance ??
+            raw?.wallet_balance ??
+            raw?.wallet ??
+            raw?.data?.balance ??
+            raw?.data?.wallet_balance ??
+            raw?.amount;
+          if (extracted !== undefined && extracted !== null && !isNaN(Number(extracted))) {
+            setRupayexBalance(Number(extracted));
+          } else if (raw?.error || raw?.message) {
+            setRupayexBalanceError(raw.error || raw.message);
+          } else {
+            setRupayexBalance(0);
+          }
         }
+      } else {
+        setRupayexBalanceError(data?.error || data?.message || 'Failed to query gateway');
       }
-    } catch (e) {
+    } catch (e: any) {
       console.debug('Failed to fetch Rupayex wallet balance:', e);
+      setRupayexBalanceError(e.message || 'Connection error');
     } finally {
       setIsLoadingRupayexBalance(false);
     }
@@ -226,7 +262,10 @@ export const AdminDashboardView: React.FC = () => {
         const data = await res.json();
         if (data) {
           if (data.tokenMasked) setMaskedRupayexToken(data.tokenMasked);
-          if (data.token) setRawTokenValue(data.token);
+          if (data.token) {
+            setRawTokenValue(data.token);
+            setRupayexTokenInput(data.token);
+          }
           if (typeof data.enabled === 'boolean') setIsGatewayEnabled(data.enabled);
         }
       }
@@ -642,6 +681,15 @@ export const AdminDashboardView: React.FC = () => {
   // Role toggle
   const handleRoleToggle = (targetUser: SystemUserItem) => {
     setRoleToggleTarget(targetUser);
+  };
+
+  // VIP level save handler
+  const handleVipLevelSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUserForVip) return;
+    await updateUserVipLevelInDb(selectedUserForVip.uid, vipLevelSelect);
+    setSelectedUserForVip(null);
+    fetchAllSystemData();
   };
 
   // Balance adjust submit
@@ -1170,6 +1218,31 @@ export const AdminDashboardView: React.FC = () => {
 
                   <button
                     onClick={() => {
+                      setActiveTab('giftcodes');
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`w-full px-3.5 py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-between ${
+                      activeTab === 'giftcodes'
+                        ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/10'
+                        : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Gift size={16} />
+                      <span>Gift Codes</span>
+                    </div>
+                    <span
+                      className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                        activeTab === 'giftcodes' ? 'bg-slate-950 text-white' : 'bg-slate-800 text-slate-300'
+                      }`}
+                    >
+                      {giftCodes.length}
+                    </span>
+                  </button>
+
+
+                  <button
+                    onClick={() => {
                       setActiveTab('broadcast');
                       setIsSidebarOpen(false);
                     }}
@@ -1445,6 +1518,26 @@ export const AdminDashboardView: React.FC = () => {
                   {plans.length}
                 </span>
               </button>
+
+              <button
+                onClick={() => setActiveTab('giftcodes')}
+                className={`w-full px-3.5 py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-between ${
+                  activeTab === 'giftcodes'
+                    ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/10'
+                    : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Gift size={16} />
+                  <span>Gift Codes</span>
+                </div>
+                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                  activeTab === 'giftcodes' ? 'bg-slate-950 text-white' : 'bg-slate-800 text-slate-300'
+                }`}>
+                  {giftCodes.length}
+                </span>
+              </button>
+
 
               <button
                 onClick={() => setActiveTab('broadcast')}
@@ -1874,6 +1967,16 @@ export const AdminDashboardView: React.FC = () => {
                         <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => {
+                              setSelectedUserForVip(u);
+                              setVipLevelSelect(u.vipLevel || 'VIP 1');
+                            }}
+                            className="px-2 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                          >
+                            <Crown size={12} className="text-amber-400" />
+                            <span>Set VIP</span>
+                          </button>
+                          <button
+                            onClick={() => {
                               setSelectedUserForBalance(u);
                               setAdjustAmountInput('500');
                             }}
@@ -1968,6 +2071,18 @@ export const AdminDashboardView: React.FC = () => {
 
                           <td className="py-3 px-3 text-right">
                             <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => {
+                                  setSelectedUserForVip(u);
+                                  setVipLevelSelect(u.vipLevel || 'VIP 1');
+                                }}
+                                className="px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                                title="Change user VIP status and level"
+                              >
+                                <Crown size={12} className="text-amber-400" />
+                                <span>Set VIP</span>
+                              </button>
+
                               <button
                                 onClick={() => {
                                   setSelectedUserForBalance(u);
@@ -2692,8 +2807,199 @@ export const AdminDashboardView: React.FC = () => {
             </div>
           )}
 
+          {/* TAB: TREASURE BOX GIFT CODES */}
+          {activeTab === 'giftcodes' && (
+            <div className="space-y-6">
+              {/* Top Create Gift Code Card */}
+              <div className="bg-[#0b1730] border border-slate-800/80 rounded-3xl p-5 sm:p-6 shadow-xl max-w-2xl">
+                <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-800">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/20">
+                    <Gift size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-white">Create Treasure Box Gift Code</h3>
+                    <p className="text-xs text-slate-400">
+                      Generate custom reward codes for instant user wallet credits.
+                    </p>
+                  </div>
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!newCodeName.trim()) {
+                      showToast('Please enter a gift code string');
+                      return;
+                    }
+                    const rewardAmt = Number(newCodeReward);
+                    if (isNaN(rewardAmt) || rewardAmt <= 0) {
+                      showToast('Reward amount must be greater than 0');
+                      return;
+                    }
+                    const claims = Number(newCodeMaxClaims) || 0;
+
+                    createGiftCode({
+                      code: newCodeName.trim().toUpperCase(),
+                      rewardAmount: rewardAmt,
+                      maxClaims: claims,
+                      expiresAt: newCodeExpiry.trim() || undefined,
+                      active: true,
+                    });
+
+                    setNewCodeName('');
+                    setNewCodeReward('100');
+                    setNewCodeMaxClaims('500');
+                    setNewCodeExpiry('');
+                  }}
+                  className="space-y-4"
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">
+                        Gift Code String
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newCodeName}
+                        onChange={(e) => setNewCodeName(e.target.value.toUpperCase())}
+                        placeholder="e.g. AALAY100"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono font-bold focus:outline-none focus:border-amber-500 uppercase"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">
+                        Reward Amount (₹)
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        value={newCodeReward}
+                        onChange={(e) => setNewCodeReward(e.target.value)}
+                        placeholder="100"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-amber-400 text-xs font-mono font-bold focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">
+                        Max Redemption Limit <span className="text-slate-500 font-normal">(0 = Unlimited)</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={newCodeMaxClaims}
+                        onChange={(e) => setNewCodeMaxClaims(e.target.value)}
+                        placeholder="500"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">
+                        Expiration Date <span className="text-slate-500 font-normal">(Optional)</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={newCodeExpiry}
+                        onChange={(e) => setNewCodeExpiry(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/10 cursor-pointer active:scale-95"
+                  >
+                    <Plus size={15} className="stroke-[3]" />
+                    <span>Publish Gift Code</span>
+                  </button>
+                </form>
+              </div>
+
+              {/* Active Gift Codes Table */}
+              <div className="bg-[#0b1730] border border-slate-800/80 rounded-3xl p-5 shadow-xl">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm sm:text-base font-black text-white">Active Treasure Box Gift Codes</h3>
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-xs font-black">
+                    {giftCodes.length} Codes
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-slate-400 font-bold uppercase text-[10px]">
+                        <th className="pb-3 px-3">Code String</th>
+                        <th className="pb-3 px-3">Reward Value</th>
+                        <th className="pb-3 px-3">Claims Progress</th>
+                        <th className="pb-3 px-3">Status / Expiry</th>
+                        <th className="pb-3 px-3 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 font-medium">
+                      {giftCodes.map((gc) => (
+                        <tr key={gc.id} className="hover:bg-slate-800/30 transition-colors">
+                          <td className="py-3 px-3 font-mono font-black text-white text-sm">
+                            <span className="px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-700/80 text-amber-400 inline-block">
+                              {gc.code}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-3 font-black text-emerald-400 font-mono text-sm">
+                            +₹{gc.rewardAmount.toLocaleString('en-IN')}
+                          </td>
+
+                          <td className="py-3 px-3 text-slate-300 font-mono text-xs">
+                            {gc.timesClaimed} / {gc.maxClaims > 0 ? gc.maxClaims : '∞'} claimed
+                          </td>
+
+                          <td className="py-3 px-3 text-xs">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                gc.active
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                  : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                              }`}
+                            >
+                              {gc.active ? 'Active' : 'Inactive'}
+                            </span>
+                            {gc.expiresAt && (
+                              <span className="block text-[10px] text-slate-400 mt-0.5">Exp: {gc.expiresAt}</span>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => deleteGiftCode(gc.id)}
+                              className="p-1.5 rounded-xl bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition-all cursor-pointer"
+                              title="Delete Gift Code"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {giftCodes.length === 0 && (
+                    <div className="text-center py-8 text-slate-500 text-xs font-bold">
+                      No custom gift codes created yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* TAB 5: SYSTEM ANNOUNCEMENTS */}
           {activeTab === 'broadcast' && (
+
             <div className="space-y-4">
               <div className="bg-[#0b1730] border border-slate-800/80 rounded-3xl p-6 shadow-xl max-w-2xl">
                 <div className="flex items-center gap-2 mb-4">
@@ -2830,7 +3136,7 @@ export const AdminDashboardView: React.FC = () => {
                         <button
                           type="button"
                           onClick={fetchRupayexBalance}
-                          className="text-[10px] text-amber-400 font-bold hover:underline flex items-center gap-1"
+                          className="text-[10px] text-amber-400 font-bold hover:underline flex items-center gap-1 cursor-pointer"
                         >
                           <RefreshCw size={10} className={isLoadingRupayexBalance ? 'animate-spin' : ''} />
                           Check Live
@@ -2838,11 +3144,20 @@ export const AdminDashboardView: React.FC = () => {
                       </div>
                       <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono">
                         {isLoadingRupayexBalance ? (
-                          <span className="text-sm text-slate-500">Checking balance...</span>
+                          <span className="text-sm text-amber-400 animate-pulse flex items-center gap-1.5">
+                            <RefreshCw size={14} className="animate-spin" />
+                            Checking balance...
+                          </span>
                         ) : rupayexBalance !== null ? (
                           `₹${rupayexBalance.toLocaleString('en-IN')}`
+                        ) : rupayexBalanceError ? (
+                          <span className="text-xs text-rose-400 font-sans block leading-snug">
+                            {rupayexBalanceError}
+                          </span>
                         ) : (
-                          <span className="text-sm text-slate-500">Unavailable / Token setup required</span>
+                          <span className="text-xs text-slate-400 font-sans">
+                            Ready • Click &quot;Check Live&quot; or update token below
+                          </span>
                         )}
                       </div>
                       <p className="text-[10px] text-slate-400 mt-1">
@@ -3857,6 +4172,100 @@ export const AdminDashboardView: React.FC = () => {
                 >
                   <Check size={14} />
                   <span>Credit User Wallet</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Set VIP Level Modal */}
+      {selectedUserForVip && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-[#0b1730] border border-amber-500/40 rounded-3xl p-5 shadow-2xl text-white relative animate-scale-up">
+            <button
+              onClick={() => setSelectedUserForVip(null)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-all cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-3.5 mb-4 pr-8">
+              <img
+                src={selectedUserForVip.avatar || 'https://i.ibb.co/JWBdHWpv/profile-picture.png'}
+                alt={selectedUserForVip.name}
+                className="w-12 h-12 rounded-full object-cover border-2 border-amber-500/60 shrink-0"
+              />
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h3 className="font-extrabold text-base text-white truncate">{selectedUserForVip.name}</h3>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-black text-[10px]">
+                    Current: {selectedUserForVip.vipLevel || 'VIP 0'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 font-mono">+91 {selectedUserForVip.phone}</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleVipLevelSave} className="space-y-4">
+              <div>
+                <label className="block text-xs font-extrabold text-amber-400 uppercase tracking-wider mb-2">
+                  Select User VIP Level
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    'VIP 0',
+                    'VIP 1',
+                    'VIP 2',
+                    'VIP 3',
+                    'VIP 4',
+                    'VIP 5',
+                    'VIP 6',
+                    'VIP 7',
+                    'VIP 8',
+                    'VIP 9',
+                    'VIP 10',
+                  ].map((lvl) => (
+                    <button
+                      key={lvl}
+                      type="button"
+                      onClick={() => setVipLevelSelect(lvl)}
+                      className={`py-2.5 px-2 rounded-xl text-xs font-black transition-all flex flex-col items-center justify-center gap-1 border cursor-pointer ${
+                        vipLevelSelect === lvl
+                          ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md scale-[1.02]'
+                          : 'bg-slate-900/90 text-slate-300 border-slate-700/80 hover:bg-slate-800'
+                      }`}
+                    >
+                      <Crown size={13} className={vipLevelSelect === lvl ? 'fill-slate-950 text-slate-950' : 'text-amber-400'} />
+                      <span>{lvl === 'VIP 0' ? 'VIP 0 (Normal)' : lvl}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-slate-900/90 rounded-2xl p-3 border border-slate-800 text-xs text-slate-300 space-y-1">
+                <div className="font-bold text-amber-400 flex items-center gap-1">
+                  <Sparkles size={13} /> VIP Status Permissions
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Upgrading user to <strong className="text-white">VIP 1 or higher</strong> immediately unlocks VIP product purchases for them on the storefront. VIP 0 users remain restricted to Normal plans.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserForVip(null)}
+                  className="flex-1 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+                >
+                  <Save size={15} />
+                  <span>Update VIP Level</span>
                 </button>
               </div>
             </form>

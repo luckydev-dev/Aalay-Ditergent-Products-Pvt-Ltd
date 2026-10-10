@@ -14,6 +14,7 @@ import {
   SubScreen,
   UserRole,
   RechargeRequest,
+  GiftCode,
 } from '../types';
 import {
   auth,
@@ -37,7 +38,105 @@ import {
   FirebaseUser,
 } from '../firebase';
 
-export const INITIAL_PLANS: ProductPlan[] = [];
+export const DEFAULT_PLANS: ProductPlan[] = [
+  {
+    id: 'plan-1',
+    name: 'Aalay Ultra Wash Powder Unit',
+    tag: 'Hot Item',
+    tagType: 'popular',
+    price: 600,
+    dailyIncome: 300,
+    durationDays: 20,
+    totalRevenue: 6000,
+    type: 'normal',
+    imageType: 'fevicol',
+    description: 'Automated detergent cake mixing & active enzyme washing powder manufacturing unit.',
+  },
+  {
+    id: 'plan-2',
+    name: 'Aalay Extra Clean Liquid Unit',
+    tag: 'Best Value',
+    tagType: 'best-value',
+    price: 1500,
+    dailyIncome: 800,
+    durationDays: 25,
+    totalRevenue: 20000,
+    type: 'normal',
+    imageType: 'drfixit',
+    description: 'High-speed automated detergent liquid bottling line with daily dividend returns.',
+  },
+  {
+    id: 'plan-3',
+    name: 'Aalay Heavy Duty Detergent Line',
+    tag: 'High Yield',
+    tagType: 'popular',
+    price: 3500,
+    dailyIncome: 1900,
+    durationDays: 30,
+    totalRevenue: 57000,
+    type: 'normal',
+    imageType: 'mseal',
+    description: 'Industrial grade detergent powder manufacturing & regional distribution contract.',
+  },
+  {
+    id: 'plan-vip-1',
+    name: 'Aalay VIP Gold Manufacturing Hub',
+    tag: 'VIP Level 1+',
+    tagType: 'best-value',
+    price: 5000,
+    dailyIncome: 3000,
+    durationDays: 30,
+    totalRevenue: 90000,
+    type: 'vip',
+    imageType: 'tilefix',
+    description: 'Exclusive VIP partner detergent manufacturing hub with maximum daily return rate.',
+  },
+  {
+    id: 'plan-vip-2',
+    name: 'Aalay VIP Titanium Mega Plant',
+    tag: 'VIP Elite',
+    tagType: 'best-value',
+    price: 12000,
+    dailyIncome: 7500,
+    durationDays: 30,
+    totalRevenue: 225000,
+    type: 'vip',
+    imageType: 'laticrete',
+    description: 'Supreme VIP industrial production plant for high volume national supply.',
+  },
+];
+
+export const INITIAL_PLANS: ProductPlan[] = DEFAULT_PLANS;
+
+export const DEFAULT_GIFT_CODES: GiftCode[] = [
+  {
+    id: 'gc-1',
+    code: 'AALAY50',
+    rewardAmount: 50,
+    maxClaims: 1000,
+    timesClaimed: 14,
+    createdAt: Date.now(),
+    active: true,
+  },
+  {
+    id: 'gc-2',
+    code: 'AALEY2026',
+    rewardAmount: 200,
+    maxClaims: 500,
+    timesClaimed: 42,
+    createdAt: Date.now(),
+    active: true,
+  },
+  {
+    id: 'gc-3',
+    code: 'BONUS100',
+    rewardAmount: 100,
+    maxClaims: 200,
+    timesClaimed: 8,
+    createdAt: Date.now(),
+    active: true,
+  },
+];
 
 export const INITIAL_MISSIONS: TeamMission[] = [
   { id: 'm-1', requiredMembers: 1, rewardAmount: 200, claimed: false },
@@ -80,7 +179,7 @@ const DEFAULT_USER: UserProfile = {
   name: '',
   phone: '',
   id: '',
-  vipLevel: 'VIP1',
+  vipLevel: 'VIP 0',
   balance: 0,
   totalRecharge: 0,
   totalIncome: 0,
@@ -110,6 +209,7 @@ interface AppContextType {
   isDatabaseLoading: boolean;
   bankDetails: BankDetails;
   plans: ProductPlan[];
+  giftCodes: GiftCode[];
   orders: PurchasedOrder[];
   transactions: TransactionRecord[];
   withdrawals: WithdrawalRecord[];
@@ -155,10 +255,12 @@ interface AppContextType {
   approveRechargeRequestInDb: (requestId: string, targetUid: string, amount: number) => Promise<boolean>;
   rejectRechargeRequestInDb: (requestId: string, reason?: string) => Promise<boolean>;
   requestWithdrawal: (amount: number) => { success: boolean; message: string };
-  buyPlan: (planId: string) => { success: boolean; message: string };
+  buyPlan: (planId: string) => { success: boolean; message: string; purchasedPlan?: ProductPlan };
   collectOrderIncome: (orderId: string) => Promise<boolean>;
   spinLuckyDraw: (wonAmount: number) => void;
   redeemGiftCode: (code: string) => { success: boolean; message: string; amount?: number };
+  createGiftCode: (codeData: Omit<GiftCode, 'id' | 'timesClaimed' | 'createdAt'>) => GiftCode;
+  deleteGiftCode: (id: string) => void;
   claimMission: (missionId: string) => boolean;
   markNotificationRead: (id: string) => void;
   addActiveTeamMember: () => void;
@@ -166,6 +268,7 @@ interface AppContextType {
 
   setUserRole: (role: 'user' | 'owner') => Promise<void>;
   updateUserRoleInDb: (targetUid: string, role: 'user' | 'owner') => Promise<boolean>;
+  updateUserVipLevelInDb: (targetUid: string, newVipLevel: string) => Promise<boolean>;
   adjustUserBalanceInDb: (targetUid: string, deltaAmount: number, reason?: string) => Promise<boolean>;
   approveWithdrawalInDb: (targetUid: string, withdrawalId: string) => Promise<boolean>;
   rejectWithdrawalInDb: (targetUid: string, withdrawalId: string) => Promise<boolean>;
@@ -175,6 +278,7 @@ interface AppContextType {
   deletePlan: (planId: string) => void;
   resetPlansToDefault: () => void;
 }
+
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -212,24 +316,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return DEFAULT_BANK;
   });
 
-  // Live Cloud Database Plans - Zero localStorage storage, admin adds/edits via dashboard
-  const [plans, setPlans] = useState<ProductPlan[]>([]);
+  // Live Product Plans with persistent state & defaults fallback
+  const [plans, setPlans] = useState<ProductPlan[]>(() => {
+    try {
+      const saved = localStorage.getItem('aaley_product_plans');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return DEFAULT_PLANS;
+  });
+
+  const [giftCodes, setGiftCodes] = useState<GiftCode[]>(() => {
+    try {
+      const saved = localStorage.getItem('aaley_gift_codes');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return DEFAULT_GIFT_CODES;
+  });
+
   const [isDatabaseLoading, setIsDatabaseLoading] = useState<boolean>(true);
 
-  // Safety fallback: prevents infinite spinner if user is completely offline
+  // Safety fallback timer for loader
   useEffect(() => {
-    // Clear out any old legacy mock plans cached in localStorage
-    try {
-      localStorage.removeItem('aaley_product_plans');
-      localStorage.removeItem('aalay_product_plans');
-    } catch (e) {}
-
     const timer = setTimeout(() => {
       setIsDatabaseLoading(false);
-    }, 2200);
+    }, 1500);
 
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('aaley_gift_codes', JSON.stringify(giftCodes));
+    } catch (e) {}
+  }, [giftCodes]);
+
 
   const [orders, setOrders] = useState<PurchasedOrder[]>(() => {
     const saved = localStorage.getItem('aaley_orders');
@@ -1476,9 +1602,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: 'Withdrawal submitted! Payout will reflect within 10-30 minutes.' };
   };
 
-  const buyPlan = (planId: string): { success: boolean; message: string } => {
+  const buyPlan = (planId: string): { success: boolean; message: string; purchasedPlan?: ProductPlan } => {
     const plan = plans.find((p) => p.id === planId);
     if (!plan) return { success: false, message: 'Plan not found.' };
+
+    // Strict VIP Gating: Normal users cannot purchase VIP products
+    if (plan.type === 'vip') {
+      const userVip = String(user.vipLevel || '').trim().toUpperCase();
+      const isVipEligible =
+        user.role === 'owner' ||
+        (userVip !== '' &&
+          userVip !== 'VIP 0' &&
+          userVip !== 'VIP0' &&
+          userVip !== '0' &&
+          userVip !== 'NORMAL');
+
+      if (!isVipEligible) {
+        showToast('VIP Product Locked! Normal users cannot purchase VIP plans.');
+        return {
+          success: false,
+          message:
+            'VIP Product Locked! Normal users cannot purchase VIP products. Contact Admin to upgrade your VIP level.',
+        };
+      }
+    }
 
     if (user.balance < plan.price) {
       setRechargePresetAmount(plan.price);
@@ -1533,7 +1680,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setTransactions((prev) => [newTx, ...prev]);
     showToast(`Successfully purchased ${plan.name}! Check Purchase Record.`);
-    return { success: true, message: `Successfully purchased ${plan.name}!` };
+    return { success: true, message: `Successfully purchased ${plan.name}!`, purchasedPlan: plan };
   };
 
   const collectOrderIncome = async (orderId: string): Promise<boolean> => {
@@ -1631,8 +1778,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const redeemGiftCode = (code: string): { success: boolean; message: string; amount?: number } => {
-    const cleanCode = code.trim().toUpperCase();
+  const redeemGiftCode = (codeInput: string): { success: boolean; message: string; amount?: number } => {
+    const cleanCode = codeInput.trim().toUpperCase();
     if (!cleanCode) {
       return { success: false, message: 'Please enter a valid gift code.' };
     }
@@ -1641,36 +1788,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'This gift code has already been redeemed!' };
     }
 
-    const validCodes: Record<string, number> = {
-      AALAY50: 50,
-      AALEY50: 50,
-      BISCUIT100: 100,
-      AALAY2026: 200,
-      AALEY2026: 200,
-      BONUS40: 40,
-      TELEGRAM77: 77,
-      LUCKY88: 88,
-    };
+    // 1. Check dynamic gift codes created by admin or default list
+    const foundCode = giftCodes.find((gc) => gc.code.toUpperCase() === cleanCode && gc.active);
 
-    const amount = validCodes[cleanCode] || (cleanCode.length >= 4 ? 35 : null);
+    let rewardAmount = 0;
+    if (foundCode) {
+      if (foundCode.expiresAt && new Date(foundCode.expiresAt).getTime() < Date.now()) {
+        return { success: false, message: 'This gift code has expired.' };
+      }
+      if (foundCode.maxClaims > 0 && foundCode.timesClaimed >= foundCode.maxClaims) {
+        return { success: false, message: 'This gift code has reached its maximum redemption limit.' };
+      }
+      rewardAmount = foundCode.rewardAmount;
+    } else {
+      // Fallback preset codes
+      const validCodes: Record<string, number> = {
+        AALAY50: 50,
+        AALEY50: 50,
+        BISCUIT100: 100,
+        AALAY2026: 200,
+        AALEY2026: 200,
+        BONUS40: 40,
+        TELEGRAM77: 77,
+        LUCKY88: 88,
+      };
+      rewardAmount = validCodes[cleanCode] || (cleanCode.length >= 4 ? 35 : 0);
+    }
 
-    if (!amount) {
-      return { success: false, message: 'Invalid gift code. Join our Telegram channel for daily working codes!' };
+    if (rewardAmount <= 0) {
+      return { success: false, message: 'Invalid gift code. Check Telegram or contact Admin for active codes!' };
+    }
+
+    // Increment times claimed if dynamic
+    if (foundCode) {
+      setGiftCodes((prev) =>
+        prev.map((gc) =>
+          gc.id === foundCode.id
+            ? {
+                ...gc,
+                timesClaimed: gc.timesClaimed + 1,
+                claimedBy: [...(gc.claimedBy || []), user.phone || user.id],
+              }
+            : gc
+        )
+      );
     }
 
     setRedeemedCodes((prev) => [...prev, cleanCode]);
-    setTotalWonTreasure((prev) => prev + amount);
+    setTotalWonTreasure((prev) => prev + rewardAmount);
 
     setUser((prev) => ({
       ...prev,
-      balance: prev.balance + amount,
-      totalIncome: prev.totalIncome + amount,
+      balance: prev.balance + rewardAmount,
+      totalIncome: prev.totalIncome + rewardAmount,
     }));
 
     const newTx: TransactionRecord = {
       id: `tx-gift-${Date.now()}`,
-      title: `Treasure Gift Code (${cleanCode})`,
-      amount: amount,
+      title: `Treasure Box Code (${cleanCode})`,
+      amount: rewardAmount,
       type: 'income',
       category: 'treasure_code',
       date:
@@ -1681,9 +1857,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setTransactions((prev) => [newTx, ...prev]);
-    showToast(`Claimed ₹${amount} from gift code ${cleanCode}!`);
-    return { success: true, message: `Congratulations! ₹${amount} added to your balance.`, amount };
+    showToast(`Claimed ₹${rewardAmount} from gift code ${cleanCode}!`);
+    return { success: true, message: `Congratulations! ₹${rewardAmount} added to your wallet balance.`, amount: rewardAmount };
   };
+
+  const createGiftCode = (codeData: Omit<GiftCode, 'id' | 'timesClaimed' | 'createdAt'>): GiftCode => {
+    const newCode: GiftCode = {
+      ...codeData,
+      id: `gc-${Date.now()}`,
+      code: codeData.code.trim().toUpperCase(),
+      timesClaimed: 0,
+      createdAt: Date.now(),
+      active: true,
+    };
+
+    setGiftCodes((prev) => {
+      const updated = [newCode, ...prev.filter((gc) => gc.code.toUpperCase() !== newCode.code)];
+      try {
+        localStorage.setItem('aaley_gift_codes', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    showToast(`Gift code "${newCode.code}" (₹${newCode.rewardAmount}) created successfully!`);
+    return newCode;
+  };
+
+  const deleteGiftCode = (id: string) => {
+    setGiftCodes((prev) => {
+      const updated = prev.filter((gc) => gc.id !== id);
+      try {
+        localStorage.setItem('aaley_gift_codes', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+    showToast('Gift code removed successfully.');
+  };
+
 
   const claimMission = (missionId: string): boolean => {
     const mission = missions.find((m) => m.id === missionId);
@@ -1846,6 +2056,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateUserVipLevelInDb = async (targetUid: string, newVipLevel: string): Promise<boolean> => {
+    try {
+      // 1. Update in local registry
+      const stored = localStorage.getItem('aaley_all_registered_users');
+      if (stored) {
+        try {
+          const list: UserProfile[] = JSON.parse(stored);
+          const updatedList = list.map((u) =>
+            u.uid === targetUid || u.phone === targetUid ? { ...u, vipLevel: newVipLevel } : u
+          );
+          localStorage.setItem('aaley_all_registered_users', JSON.stringify(updatedList));
+        } catch (e) {}
+      }
+
+      // 2. Update in RTDB
+      try {
+        await update(ref(rtdb, `users/${targetUid}/profile`), { vipLevel: newVipLevel });
+      } catch (e) {
+        console.debug('RTDB vip level update error:', e);
+      }
+
+      // 3. Update in-memory active user if target matches
+      if (
+        targetUid === (firebaseUser?.uid || activeListenerRef.current) ||
+        targetUid === user.phone ||
+        targetUid === user.uid
+      ) {
+        setUser((prev) => {
+          const updated = { ...prev, vipLevel: newVipLevel };
+          localStorage.setItem('aaley_user', JSON.stringify(updated));
+          return updated;
+        });
+      }
+
+      showToast(`User VIP level updated to ${newVipLevel}`);
+      return true;
+    } catch (e: any) {
+      if (
+        targetUid === (firebaseUser?.uid || activeListenerRef.current) ||
+        targetUid === user.phone ||
+        targetUid === user.uid
+      ) {
+        setUser((prev) => ({ ...prev, vipLevel: newVipLevel }));
+      }
+      showToast(`VIP level set to ${newVipLevel}`);
+      return true;
+    }
+  };
+
   const adjustUserBalanceInDb = async (
     targetUid: string,
     deltaAmount: number,
@@ -1994,25 +2253,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addNewPlan = (newPlan: ProductPlan) => {
-    setPlans((prev) => [newPlan, ...prev.filter((p) => p.id !== newPlan.id)]);
+    setPlans((prev) => {
+      const updated = [newPlan, ...prev.filter((p) => p.id !== newPlan.id)];
+      try {
+        localStorage.setItem('aaley_product_plans', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
 
     try {
       const cleanData = sanitizePlanForFirebase(newPlan);
-      set(ref(rtdb, `config/plans/${newPlan.id}`), cleanData).catch((err) =>
-        console.warn('RTDB add config/plans warning:', err)
-      );
-      set(ref(rtdb, `plans/${newPlan.id}`), cleanData).catch((err) =>
-        console.warn('RTDB add plans warning:', err)
-      );
-    } catch (e) {
-      console.error('addNewPlan exception:', e);
-    }
+      set(ref(rtdb, `config/plans/${newPlan.id}`), cleanData).catch(() => {});
+      set(ref(rtdb, `plans/${newPlan.id}`), cleanData).catch(() => {});
+    } catch (e) {}
 
     showToast(`New product "${newPlan.name}" added to catalog!`);
   };
 
   const deletePlan = (planId: string) => {
-    setPlans((prev) => prev.filter((p) => p.id !== planId));
+    setPlans((prev) => {
+      const updated = prev.filter((p) => p.id !== planId);
+      try {
+        localStorage.setItem('aaley_product_plans', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
 
     try {
       set(ref(rtdb, `config/plans/${planId}`), null).catch(() => {});
@@ -2023,30 +2288,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updatePlan = (updatedPlan: ProductPlan) => {
-    setPlans((prev) => prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p)));
+    setPlans((prev) => {
+      const updated = prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p));
+      try {
+        localStorage.setItem('aaley_product_plans', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
 
     try {
       const cleanData = sanitizePlanForFirebase(updatedPlan);
-      set(ref(rtdb, `config/plans/${updatedPlan.id}`), cleanData).catch((err) =>
-        console.warn('RTDB update config/plans warning:', err)
-      );
-      set(ref(rtdb, `plans/${updatedPlan.id}`), cleanData).catch((err) =>
-        console.warn('RTDB update plans warning:', err)
-      );
-    } catch (e) {
-      console.error('updatePlan exception:', e);
-    }
+      set(ref(rtdb, `config/plans/${updatedPlan.id}`), cleanData).catch(() => {});
+      set(ref(rtdb, `plans/${updatedPlan.id}`), cleanData).catch(() => {});
+    } catch (e) {}
 
     showToast(`Product "${updatedPlan.name}" updated successfully!`);
   };
 
   const resetPlansToDefault = () => {
-    setPlans([]);
+    setPlans(DEFAULT_PLANS);
     try {
+      localStorage.setItem('aaley_product_plans', JSON.stringify(DEFAULT_PLANS));
       set(ref(rtdb, 'config/plans'), null).catch(() => {});
       set(ref(rtdb, 'plans'), null).catch(() => {});
     } catch (e) {}
-    showToast('Product plans cleared. You can add new products anytime.');
+    showToast('Product catalog restored to default factory preset units.');
   };
 
   return (
@@ -2059,6 +2325,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isDatabaseLoading,
         bankDetails,
         plans,
+        giftCodes,
         orders,
         transactions,
         withdrawals,
@@ -2102,6 +2369,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         collectOrderIncome,
         spinLuckyDraw,
         redeemGiftCode,
+        createGiftCode,
+        deleteGiftCode,
         claimMission,
         markNotificationRead,
         addActiveTeamMember,
@@ -2109,6 +2378,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         setUserRole,
         updateUserRoleInDb,
+        updateUserVipLevelInDb,
         adjustUserBalanceInDb,
         approveWithdrawalInDb,
         rejectWithdrawalInDb,
@@ -2123,6 +2393,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     </AppContext.Provider>
   );
 };
+
+
 
 export const useApp = () => {
   const context = useContext(AppContext);

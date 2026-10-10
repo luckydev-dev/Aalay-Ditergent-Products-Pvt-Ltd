@@ -22,9 +22,11 @@ import { CustomerServiceSheet } from './components/modals/CustomerServiceSheet';
 import { LiveChatModal } from './components/modals/LiveChatModal';
 import { InviteModal } from './components/modals/InviteModal';
 import { DatabaseSplashLoader } from './components/common/DatabaseSplashLoader';
+import { OneSignalPromptBanner } from './components/common/OneSignalPromptBanner';
 import { CheckCircle2 } from 'lucide-react';
 
 const AppContent: React.FC = () => {
+
   const { user, activeTab, subScreen, setSubScreen, toastMessage, setShowWelcomeModal, isDatabaseLoading } = useApp();
 
   const [isAdminRoute, setIsAdminRoute] = React.useState<boolean>(() => {
@@ -191,6 +193,8 @@ const AppContent: React.FC = () => {
         <CustomerServiceSheet />
         <LiveChatModal />
         <InviteModal />
+        <OneSignalPromptBanner />
+
 
         {/* Toast Notification Alert */}
         {toastMessage && (

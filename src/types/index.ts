@@ -148,3 +148,16 @@ export interface RechargeRequest {
   autoVerified?: boolean;
   rejectReason?: string;
 }
+
+export interface GiftCode {
+  id: string;
+  code: string;
+  rewardAmount: number;
+  maxClaims: number;
+  timesClaimed: number;
+  expiresAt?: string;
+  claimedBy?: string[];
+  createdAt: number;
+  active: boolean;
+}
+

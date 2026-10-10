@@ -23,7 +23,43 @@ async function startServer() {
   // Rupayex Payment Gateway & Payout Integration
   // Base URL: https://rupayex.net/api
   // ==========================================
+  const CONFIG_FILE_PATH = path.join(__dirname, 'gateway-config.json');
+  
   let rupayexApiToken = process.env.RUPAYEX_API_TOKEN || 'c0bfc67f130d640a0f7f9737de2f9af6';
+  let rupayexGatewayEnabled = true;
+  let onesignalAppId = process.env.ONESIGNAL_APP_ID || '';
+  let onesignalRestApiKey = process.env.ONESIGNAL_REST_API_KEY || '';
+
+  // Load persistent configuration from disk if present
+  try {
+    if (fs.existsSync(CONFIG_FILE_PATH)) {
+      const savedConfig = JSON.parse(fs.readFileSync(CONFIG_FILE_PATH, 'utf-8'));
+      if (savedConfig.rupayexApiToken) rupayexApiToken = savedConfig.rupayexApiToken;
+      if (typeof savedConfig.rupayexGatewayEnabled === 'boolean') rupayexGatewayEnabled = savedConfig.rupayexGatewayEnabled;
+      if (savedConfig.onesignalAppId) onesignalAppId = savedConfig.onesignalAppId;
+      if (savedConfig.onesignalRestApiKey) onesignalRestApiKey = savedConfig.onesignalRestApiKey;
+      console.log('[Config] Loaded persistent gateway and OneSignal settings from disk');
+    }
+  } catch (err) {
+    console.warn('[Config] Could not read gateway-config.json:', err);
+  }
+
+  const saveConfigToDisk = () => {
+    try {
+      fs.writeFileSync(
+        CONFIG_FILE_PATH,
+        JSON.stringify({
+          rupayexApiToken,
+          rupayexGatewayEnabled,
+          onesignalAppId,
+          onesignalRestApiKey,
+        }, null, 2)
+      );
+    } catch (err) {
+      console.warn('[Config] Failed to write gateway-config.json:', err);
+    }
+  };
+
   const RUPAYEX_BASE_URL = 'https://rupayex.net/api';
   const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET || 'aalay_admin_secure_key_2026';
 
@@ -276,30 +312,84 @@ async function startServer() {
   app.get('/api/rupayex/wallet-balance', requireAdminAuth, async (req, res) => {
     try {
       const token = getRupayexToken();
+      if (!token) {
+        return res.status(400).json({ status: false, error: 'Rupayex API user token is not configured.' });
+      }
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 12000);
 
+      // Attempt 1: GET request
       const queryUrl = `${RUPAYEX_BASE_URL}/wallet-balance?user_token=${encodeURIComponent(token)}`;
-      const rpxRes = await fetch(queryUrl, {
+      let rpxRes = await fetch(queryUrl, {
         method: 'GET',
         headers: {
           'X-Api-Token': token,
+          'Accept': 'application/json',
         },
         signal: controller.signal,
       });
+
+      let resText = await rpxRes.text();
+      let data: any;
+      try {
+        data = JSON.parse(resText);
+      } catch {
+        data = { message: resText };
+      }
+
+      // Attempt 2: If GET failed or returned error, try POST request with form-urlencoded
+      const rawBalCheck = data?.balance ?? data?.wallet_balance ?? data?.wallet ?? data?.data?.balance ?? data?.data?.wallet_balance ?? data?.amount;
+      if (!rpxRes.ok || rawBalCheck === undefined) {
+        const postParams = new URLSearchParams();
+        postParams.append('user_token', token);
+
+        const postRes = await fetch(`${RUPAYEX_BASE_URL}/wallet-balance`, {
+          method: 'POST',
+          headers: {
+            'X-Api-Token': token,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+          },
+          body: postParams.toString(),
+          signal: controller.signal,
+        });
+
+        if (postRes.ok) {
+          const postText = await postRes.text();
+          try {
+            const postData = JSON.parse(postText);
+            const postBal = postData?.balance ?? postData?.wallet_balance ?? postData?.wallet ?? postData?.data?.balance ?? postData?.amount;
+            if (postBal !== undefined) {
+              data = postData;
+            }
+          } catch {}
+        }
+      }
       clearTimeout(timeoutId);
 
-      const data = await rpxRes.json();
-      return res.json(data);
+      // Extract numeric balance
+      const extractedBalance =
+        data?.balance ??
+        data?.wallet_balance ??
+        data?.wallet ??
+        data?.data?.balance ??
+        data?.data?.wallet_balance ??
+        data?.data?.wallet ??
+        data?.amount;
+
+      const numericBal = Number(extractedBalance);
+
+      return res.json({
+        status: true,
+        balance: !isNaN(numericBal) ? numericBal : 0,
+        raw: data,
+      });
     } catch (err: any) {
+      console.error('[Rupayex Wallet Balance Proxy Error]', err);
       return res.status(500).json({ status: false, error: err.message || 'Error querying Rupayex wallet balance' });
     }
   });
-
-  // Payment Gateway and Notification State
-  let rupayexGatewayEnabled = true;
-  let onesignalAppId = process.env.ONESIGNAL_APP_ID || '';
-  let onesignalRestApiKey = process.env.ONESIGNAL_REST_API_KEY || '';
 
   // 7. Get & Update Rupayex Gateway Token & Status
   app.get('/api/rupayex/config', (req, res) => {
@@ -320,12 +410,14 @@ async function startServer() {
     if (token && typeof token === 'string' && token.trim().length >= 6) {
       rupayexApiToken = token.trim();
     }
+    saveConfigToDisk();
     return res.json({ 
       status: true, 
       message: 'Gateway configuration updated successfully!',
       enabled: rupayexGatewayEnabled,
       hasToken: !!rupayexApiToken,
       tokenMasked: rupayexApiToken ? `${rupayexApiToken.slice(0, 6)}...${rupayexApiToken.slice(-4)}` : '',
+      token: rupayexApiToken,
     });
   });
 
@@ -347,6 +439,7 @@ async function startServer() {
     if (typeof restApiKey === 'string' && restApiKey.trim()) {
       onesignalRestApiKey = restApiKey.trim();
     }
+    saveConfigToDisk();
     return res.json({
       status: true,
       message: 'OneSignal credentials saved successfully!',
