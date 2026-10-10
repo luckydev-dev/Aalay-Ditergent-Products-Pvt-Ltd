@@ -19,7 +19,7 @@ export const PurchaseRecordView: React.FC = () => {
     const fetchServerTime = async () => {
       try {
         const res = await fetch('/api/server-time');
-        if (res.ok) {
+        if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
           const data = await res.json();
           if (data && data.serverTime && isMounted) {
             setServerTimeOffset(data.serverTime - Date.now());

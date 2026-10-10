@@ -830,7 +830,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Fetch OneSignal config and initialize client SDK
   useEffect(() => {
     fetch('/api/onesignal/config')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) return null;
+        const ct = res.headers.get('content-type') || '';
+        return ct.includes('application/json') ? res.json() : null;
+      })
       .then((data) => {
         if (data && data.appId) {
           import('../services/onesignal').then(({ initOneSignal }) => {
@@ -894,7 +898,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isVerifyingNow = true;
         const res = await fetch(`/api/rupayex/order-status?order_id=${encodeURIComponent(parsed.orderRef)}`);
 
-        if (res.ok) {
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && contentType.includes('application/json')) {
           const data = await res.json();
           if (data && (data.status === true || data.status === 'SUCCESS') && data.payment_status === 'SUCCESS') {
             // STRICT VERIFICATION PASSED: Confirmed by Rupayex Gateway!
@@ -1433,7 +1438,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }),
       });
 
-      if (verifyRes.ok) {
+      const ct = verifyRes.headers.get('content-type') || '';
+      if (verifyRes.ok && ct.includes('application/json')) {
         const data = await verifyRes.json();
         if (data.status === 'success' && data.autoVerified) {
           isAutoVerified = true;
@@ -1776,8 +1782,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }),
       });
 
+      const ct = res.headers.get('content-type') || '';
+      if (!res.ok || !ct.includes('application/json')) {
+        return false;
+      }
       const data = await res.json();
-      if (!res.ok || !data.success) {
+      if (!data.success) {
         showToast(data.error || 'Server 24-hour cycle has not completed yet.');
         return false;
       }

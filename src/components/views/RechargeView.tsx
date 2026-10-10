@@ -78,7 +78,7 @@ export const RechargeView: React.FC<RechargeViewProps> = ({ initialTab = 'rechar
     try {
       // First verify gateway status
       const configRes = await fetch('/api/rupayex/config').catch(() => null);
-      if (configRes && configRes.ok) {
+      if (configRes && configRes.ok && configRes.headers.get('content-type')?.includes('application/json')) {
         const configData = await configRes.json();
         if (configData && configData.enabled === false) {
           showToast('Payment gateway is currently under routine maintenance. Please try again shortly or contact support.');
@@ -97,6 +97,13 @@ export const RechargeView: React.FC<RechargeViewProps> = ({ initialTab = 'rechar
           remark1: `Channel${selectedChannel}_${user.phone}`,
         }),
       });
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        showToast('Payment gateway server proxy error. Please try UPI Direct Recharge below.');
+        setIsCreatingOrder(false);
+        return;
+      }
 
       const data = await res.json();
       if (!res.ok || !data.status) {
