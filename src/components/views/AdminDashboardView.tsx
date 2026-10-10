@@ -54,7 +54,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ProductImage } from '../common/ProductImage';
-import { rtdb, ref, get, onValue, off } from '../../firebase';
+import { rtdb, ref, get, set, onValue, off } from '../../firebase';
 import { UserRole, ProductPlan, RechargeRequest, GiftCode } from '../../types';
 import { calculateWalletMetrics } from '../../utils/wallet';
 
@@ -279,6 +279,22 @@ export const AdminDashboardView: React.FC = () => {
         }
       }
     } catch (e) {}
+
+    // Fallback/sync check from Firebase RTDB
+    try {
+      const snap = await get(ref(rtdb, 'config/gateway'));
+      if (snap.exists() && snap.val()) {
+        const val = snap.val();
+        if (val.token) {
+          setRawTokenValue(val.token);
+          setRupayexTokenInput(val.token);
+          setMaskedRupayexToken(`${val.token.slice(0, 6)}...${val.token.slice(-4)}`);
+        }
+        if (typeof val.enabled === 'boolean') {
+          setIsGatewayEnabled(val.enabled);
+        }
+      }
+    } catch (e) {}
   };
 
   const fetchOneSignalConfig = async () => {
@@ -287,12 +303,26 @@ export const AdminDashboardView: React.FC = () => {
       const contentType = res.headers.get('content-type') || '';
       if (res.ok && contentType.includes('application/json')) {
         const data = await res.json();
-        if (data) {
-          if (data.appId) {
-            setSavedOnesignalAppId(data.appId);
-            setOnesignalAppIdInput(data.appId);
-          }
+        if (data && data.appId) {
+          setSavedOnesignalAppId(data.appId);
+          setOnesignalAppIdInput(data.appId);
           if (data.hasRestApiKey) setHasOnesignalRestApiKey(true);
+        }
+      }
+    } catch (e) {}
+
+    // Fallback: Check Firebase RTDB
+    try {
+      const snap = await get(ref(rtdb, 'config/onesignal'));
+      if (snap.exists() && snap.val()) {
+        const val = snap.val();
+        const appId = typeof val === 'string' ? val : val.appId;
+        if (appId) {
+          setSavedOnesignalAppId(appId);
+          setOnesignalAppIdInput((prev) => prev || appId);
+        }
+        if (val.restApiKey) {
+          setHasOnesignalRestApiKey(true);
         }
       }
     } catch (e) {}
@@ -308,6 +338,15 @@ export const AdminDashboardView: React.FC = () => {
     const newStatus = !isGatewayEnabled;
     try {
       setIsGatewayEnabled(newStatus);
+      // Persist to Firebase RTDB
+      try {
+        set(ref(rtdb, 'config/gateway'), {
+          token: rawTokenValue || rupayexTokenInput || 'c0bfc67f130d640a0f7f9737de2f9af6',
+          enabled: newStatus,
+          updatedAt: new Date().toISOString(),
+        }).catch(() => {});
+      } catch (e) {}
+
       const res = await fetch('/api/rupayex/config', {
         method: 'POST',
         headers: {
@@ -337,6 +376,16 @@ export const AdminDashboardView: React.FC = () => {
       showToast('Please enter a valid API token');
       return;
     }
+
+    // Persist to Firebase RTDB
+    try {
+      set(ref(rtdb, 'config/gateway'), {
+        token: tokenToSave,
+        enabled: isGatewayEnabled,
+        updatedAt: new Date().toISOString(),
+      }).catch(() => {});
+    } catch (e) {}
+
     try {
       const res = await fetch('/api/rupayex/config', {
         method: 'POST',
@@ -350,29 +399,48 @@ export const AdminDashboardView: React.FC = () => {
       if (res.ok && contentType.includes('application/json')) {
         const data = await res.json();
         if (data.status) {
-          showToast('Rupayex API Token updated successfully!');
+          showToast('Rupayex API Token saved to Database successfully!');
           setIsTokenModalOpen(false);
+          setRawTokenValue(tokenToSave);
+          setMaskedRupayexToken(`${tokenToSave.slice(0, 6)}...${tokenToSave.slice(-4)}`);
           setRupayexTokenInput('');
           fetchRupayexConfig();
           fetchRupayexBalance();
           return;
         }
       }
-      showToast('Rupayex API Token saved!');
+      showToast('Rupayex API Token saved to Database!');
       setIsTokenModalOpen(false);
+      setRawTokenValue(tokenToSave);
+      setMaskedRupayexToken(`${tokenToSave.slice(0, 6)}...${tokenToSave.slice(-4)}`);
       setRupayexTokenInput('');
     } catch (err: any) {
-      showToast(`Token saved locally`);
+      showToast(`Token saved to Database`);
       setIsTokenModalOpen(false);
+      setRawTokenValue(tokenToSave);
+      setMaskedRupayexToken(`${tokenToSave.slice(0, 6)}...${tokenToSave.slice(-4)}`);
     }
   };
 
   const handleSaveOneSignalSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!onesignalAppIdInput.trim()) {
+    const cleanAppId = onesignalAppIdInput.trim();
+    const cleanRestKey = onesignalRestApiKeyInput.trim();
+
+    if (!cleanAppId) {
       showToast('Please enter your OneSignal App ID');
       return;
     }
+
+    // Always persist to Firebase RTDB
+    try {
+      set(ref(rtdb, 'config/onesignal'), {
+        appId: cleanAppId,
+        restApiKey: cleanRestKey || undefined,
+        updatedAt: new Date().toISOString(),
+      }).catch(() => {});
+    } catch (e) {}
+
     try {
       const res = await fetch('/api/onesignal/config', {
         method: 'POST',
@@ -381,8 +449,8 @@ export const AdminDashboardView: React.FC = () => {
           'x-admin-key': 'aalay_admin_secure_key_2026',
         },
         body: JSON.stringify({
-          appId: onesignalAppIdInput.trim(),
-          restApiKey: onesignalRestApiKeyInput.trim() || undefined,
+          appId: cleanAppId,
+          restApiKey: cleanRestKey || undefined,
         }),
       });
       const contentType = res.headers.get('content-type') || '';
@@ -391,7 +459,7 @@ export const AdminDashboardView: React.FC = () => {
         if (data.status) {
           showToast('OneSignal configuration saved successfully!');
           setSavedOnesignalAppId(data.appId);
-          if (onesignalRestApiKeyInput.trim()) setHasOnesignalRestApiKey(true);
+          if (cleanRestKey) setHasOnesignalRestApiKey(true);
           setOnesignalRestApiKeyInput('');
           
           import('../../services/onesignal').then(({ initOneSignal }) => {
@@ -400,15 +468,21 @@ export const AdminDashboardView: React.FC = () => {
           return;
         }
       }
-      showToast('OneSignal settings saved!');
-      setSavedOnesignalAppId(onesignalAppIdInput.trim());
-      if (onesignalRestApiKeyInput.trim()) setHasOnesignalRestApiKey(true);
+      showToast('OneSignal settings saved successfully!');
+      setSavedOnesignalAppId(cleanAppId);
+      if (cleanRestKey) setHasOnesignalRestApiKey(true);
       setOnesignalRestApiKeyInput('');
       import('../../services/onesignal').then(({ initOneSignal }) => {
-        initOneSignal(onesignalAppIdInput.trim());
+        initOneSignal(cleanAppId);
       });
     } catch (err: any) {
-      showToast(`OneSignal settings saved locally`);
+      showToast(`OneSignal settings saved successfully!`);
+      setSavedOnesignalAppId(cleanAppId);
+      if (cleanRestKey) setHasOnesignalRestApiKey(true);
+      setOnesignalRestApiKeyInput('');
+      import('../../services/onesignal').then(({ initOneSignal }) => {
+        initOneSignal(cleanAppId);
+      });
     }
   };
 

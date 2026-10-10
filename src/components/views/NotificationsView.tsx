@@ -9,11 +9,24 @@ export const NotificationsView: React.FC = () => {
   const [isPushOptedIn, setIsPushOptedIn] = React.useState<boolean>(false);
   const [isEnablingPush, setIsEnablingPush] = React.useState<boolean>(false);
 
-  React.useEffect(() => {
+  const checkStatus = React.useCallback(() => {
     import('../../services/onesignal').then(({ getOneSignalSubscriptionStatus }) => {
       getOneSignalSubscriptionStatus().then(setIsPushOptedIn);
     });
   }, []);
+
+  React.useEffect(() => {
+    checkStatus();
+
+    const handleFocus = () => checkStatus();
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [checkStatus]);
 
   const handleEnablePush = async () => {
     setIsEnablingPush(true);
@@ -21,6 +34,11 @@ export const NotificationsView: React.FC = () => {
       const { requestOneSignalPushPermission } = await import('../../services/onesignal');
       const granted = await requestOneSignalPushPermission();
       setIsPushOptedIn(granted);
+    } catch (err) {
+      console.warn('[NotificationsView] handleEnablePush notice:', err);
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        setIsPushOptedIn(Notification.permission === 'granted');
+      }
     } finally {
       setIsEnablingPush(false);
     }

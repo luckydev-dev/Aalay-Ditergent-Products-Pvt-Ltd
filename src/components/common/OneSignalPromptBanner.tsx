@@ -15,14 +15,32 @@ export const OneSignalPromptBanner: React.FC = () => {
       return;
     }
 
+    const checkPermissionAndHide = () => {
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        if (Notification.permission === 'granted') {
+          setIsVisible(false);
+          localStorage.setItem('onesignal_prompt_dismissed', 'true');
+        }
+      }
+    };
+
+    checkPermissionAndHide();
+
+    window.addEventListener('focus', checkPermissionAndHide);
+    window.addEventListener('visibilitychange', checkPermissionAndHide);
+
     // Check if user already granted permission or dismissed the prompt
     const dismissed = localStorage.getItem('onesignal_prompt_dismissed');
     if (dismissed === 'true') {
+      window.removeEventListener('focus', checkPermissionAndHide);
+      window.removeEventListener('visibilitychange', checkPermissionAndHide);
       return;
     }
 
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'granted') {
+        window.removeEventListener('focus', checkPermissionAndHide);
+        window.removeEventListener('visibilitychange', checkPermissionAndHide);
         return;
       }
     }
@@ -38,7 +56,11 @@ export const OneSignalPromptBanner: React.FC = () => {
       }
     }, 5000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('focus', checkPermissionAndHide);
+      window.removeEventListener('visibilitychange', checkPermissionAndHide);
+    };
   }, [user?.isLoggedIn]);
 
   const handleAllowNotifications = async () => {

@@ -829,6 +829,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Fetch OneSignal config and initialize client SDK
   useEffect(() => {
+    let initialized = false;
+
+    // 1. Check API endpoint
     fetch('/api/onesignal/config')
       .then((res) => {
         if (!res.ok) return null;
@@ -837,6 +840,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .then((data) => {
         if (data && data.appId) {
+          initialized = true;
           import('../services/onesignal').then(({ initOneSignal }) => {
             initOneSignal(data.appId);
           });
@@ -845,6 +849,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .catch((err) => {
         console.warn('OneSignal config fetch notice:', err);
       });
+
+    // 2. Real-time Firebase RTDB config backup check
+    try {
+      const osRef = ref(rtdb, 'config/onesignal');
+      onValue(osRef, (snap) => {
+        if (snap.exists() && snap.val()) {
+          const val = snap.val();
+          const appId = typeof val === 'string' ? val : val.appId;
+          if (appId) {
+            import('../services/onesignal').then(({ initOneSignal }) => {
+              initOneSignal(appId);
+            });
+          }
+        }
+      }, () => {});
+    } catch (e) {}
   }, []);
 
   // Helper to prevent duplicate credits for the same order

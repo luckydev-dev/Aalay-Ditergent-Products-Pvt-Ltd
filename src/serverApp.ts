@@ -18,13 +18,52 @@ export function createExpressApp() {
     next();
   });
 
-  // Gateway Config Persistence File
+  // Gateway & OneSignal Config Persistence
   const CONFIG_FILE_PATH = path.join(process.cwd(), 'gateway-config.json');
+  const RTDB_CONFIG_URL = 'https://aalay-soap-default-rtdb.asia-southeast1.firebasedatabase.app/config.json';
 
   let rupayexApiToken = process.env.RUPAYEX_API_TOKEN || 'c0bfc67f130d640a0f7f9737de2f9af6';
   let rupayexGatewayEnabled = true;
   let onesignalAppId = process.env.ONESIGNAL_APP_ID || '';
   let onesignalRestApiKey = process.env.ONESIGNAL_REST_API_KEY || '';
+
+  // Helper to sync from Firebase Realtime Database
+  const syncConfigFromFirebaseRTDB = async () => {
+    try {
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(RTDB_CONFIG_URL, { signal: controller.signal });
+      clearTimeout(tid);
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+          if (data.gateway) {
+            if (data.gateway.token) rupayexApiToken = data.gateway.token;
+            if (typeof data.gateway.enabled === 'boolean') rupayexGatewayEnabled = data.gateway.enabled;
+          }
+          if (data.onesignal) {
+            if (data.onesignal.appId) onesignalAppId = data.onesignal.appId;
+            if (data.onesignal.restApiKey) onesignalRestApiKey = data.onesignal.restApiKey;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[Config] Could not fetch config from Firebase RTDB:', err);
+    }
+  };
+
+  // Helper to save to Firebase Realtime Database
+  const syncConfigToFirebaseRTDB = async (subpath: 'gateway' | 'onesignal', payload: any) => {
+    try {
+      await fetch(`https://aalay-soap-default-rtdb.asia-southeast1.firebasedatabase.app/config/${subpath}.json`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, updatedAt: new Date().toISOString() }),
+      });
+    } catch (err) {
+      console.warn(`[Config] Failed to save ${subpath} config to Firebase RTDB:`, err);
+    }
+  };
 
   // Load persistent config from disk if exists
   try {
@@ -38,6 +77,9 @@ export function createExpressApp() {
   } catch (err) {
     console.warn('[Config] Could not read gateway-config.json:', err);
   }
+
+  // Immediately attempt to sync from Firebase RTDB at startup
+  syncConfigFromFirebaseRTDB();
 
   const saveConfigToDisk = () => {
     try {
@@ -382,7 +424,10 @@ export function createExpressApp() {
   });
 
   // 7. Get & Update Rupayex Gateway Token & Status
-  app.get('/api/rupayex/config', (req, res) => {
+  app.get('/api/rupayex/config', async (req, res) => {
+    if (!rupayexApiToken) {
+      await syncConfigFromFirebaseRTDB();
+    }
     return res.json({
       status: true,
       hasToken: !!rupayexApiToken,
@@ -392,7 +437,7 @@ export function createExpressApp() {
     });
   });
 
-  app.post('/api/rupayex/config', requireAdminAuth, (req, res) => {
+  app.post('/api/rupayex/config', requireAdminAuth, async (req, res) => {
     const { token, enabled } = req.body;
     if (typeof enabled === 'boolean') {
       rupayexGatewayEnabled = enabled;
@@ -401,6 +446,10 @@ export function createExpressApp() {
       rupayexApiToken = token.trim();
     }
     saveConfigToDisk();
+    await syncConfigToFirebaseRTDB('gateway', {
+      token: rupayexApiToken,
+      enabled: rupayexGatewayEnabled,
+    });
     return res.json({ 
       status: true, 
       message: 'Gateway configuration updated successfully!',
@@ -412,7 +461,10 @@ export function createExpressApp() {
   });
 
   // 8. OneSignal Notification Configuration & Push Proxy
-  app.get('/api/onesignal/config', (req, res) => {
+  app.get('/api/onesignal/config', async (req, res) => {
+    if (!onesignalAppId || !onesignalRestApiKey) {
+      await syncConfigFromFirebaseRTDB();
+    }
     return res.json({
       status: true,
       appId: onesignalAppId,
@@ -421,7 +473,7 @@ export function createExpressApp() {
     });
   });
 
-  app.post('/api/onesignal/config', requireAdminAuth, (req, res) => {
+  app.post('/api/onesignal/config', requireAdminAuth, async (req, res) => {
     const { appId, restApiKey } = req.body;
     if (typeof appId === 'string') {
       onesignalAppId = appId.trim();
@@ -430,6 +482,10 @@ export function createExpressApp() {
       onesignalRestApiKey = restApiKey.trim();
     }
     saveConfigToDisk();
+    await syncConfigToFirebaseRTDB('onesignal', {
+      appId: onesignalAppId,
+      restApiKey: onesignalRestApiKey,
+    });
     return res.json({
       status: true,
       message: 'OneSignal credentials saved successfully!',
@@ -445,6 +501,9 @@ export function createExpressApp() {
         return res.status(400).json({ status: false, error: 'Title and message are required.' });
       }
       if (!onesignalAppId || !onesignalRestApiKey) {
+        await syncConfigFromFirebaseRTDB();
+      }
+      if (!onesignalAppId || !onesignalRestApiKey) {
         return res.status(400).json({ 
           status: false, 
           error: 'OneSignal App ID and REST API Key must be configured in Admin Dashboard first.' 
@@ -455,7 +514,7 @@ export function createExpressApp() {
         app_id: onesignalAppId,
         headings: { en: title },
         contents: { en: message },
-        included_segments: segments && Array.isArray(segments) && segments.length > 0 ? segments : ['Total Subscriptions'],
+        included_segments: segments && Array.isArray(segments) && segments.length > 0 ? segments : ['Subscribed Users', 'Total Subscriptions'],
       };
 
       if (url) {
