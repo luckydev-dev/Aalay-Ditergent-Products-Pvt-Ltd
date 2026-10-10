@@ -510,11 +510,15 @@ export function createExpressApp() {
         });
       }
 
+      const validSegments = segments && Array.isArray(segments) && segments.length > 0
+        ? segments
+        : ['Subscribed Users'];
+
       const payload: any = {
         app_id: onesignalAppId,
         headings: { en: title },
         contents: { en: message },
-        included_segments: segments && Array.isArray(segments) && segments.length > 0 ? segments : ['Subscribed Users', 'Total Subscriptions'],
+        included_segments: validSegments,
       };
 
       if (url) {
@@ -531,17 +535,30 @@ export function createExpressApp() {
       });
 
       const data = await response.json();
-      if (!response.ok) {
-        return res.status(response.status).json({
+
+      if (!response.ok || data.errors) {
+        const errorMsg = Array.isArray(data.errors)
+          ? data.errors[0]
+          : typeof data.errors === 'string'
+          ? data.errors
+          : 'Failed to dispatch OneSignal notification';
+        return res.status(400).json({
           status: false,
-          error: data.errors?.[0] || 'Failed to dispatch OneSignal notification',
+          error: errorMsg,
           details: data,
         });
       }
 
+      const recipientCount = typeof data.recipients === 'number' ? data.recipients : 0;
+      const statusMessage =
+        recipientCount > 0
+          ? `Push notification sent to ${recipientCount} active subscriber(s)!`
+          : `Notification processed, but 0 subscribed users were targeted. Please ensure users have allowed browser notifications.`;
+
       return res.json({
         status: true,
-        message: 'Push notification successfully dispatched to subscribers!',
+        message: statusMessage,
+        recipients: recipientCount,
         data,
       });
     } catch (err: any) {

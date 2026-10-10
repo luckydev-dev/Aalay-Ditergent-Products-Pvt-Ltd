@@ -16,7 +16,7 @@ export async function initOneSignal(appId: string): Promise<boolean> {
 
   const cleanAppId = appId.trim();
 
-  // If already initialized with the same App ID, return true
+  // If already initialized with same App ID, return true
   if (isInitialized && currentAppId === cleanAppId) {
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
       try {
@@ -27,7 +27,7 @@ export async function initOneSignal(appId: string): Promise<boolean> {
               OneSignal.User.PushSubscription.optIn();
             }
           } catch (err) {
-            console.warn('[OneSignal] OptIn check error:', err);
+            console.warn('[OneSignal] OptIn check notice:', err);
           }
         });
       } catch (e) {}
@@ -41,21 +41,23 @@ export async function initOneSignal(appId: string): Promise<boolean> {
     const initPromise = new Promise<boolean>((resolve) => {
       window.OneSignalDeferred!.push(async (OneSignal: any) => {
         try {
-          await OneSignal.init({
-            appId: cleanAppId,
-            allowLocalhostAsSecureOrigin: true,
-            notifyButton: {
-              enable: false,
-            },
-            serviceWorkerParam: { scope: '/' },
-            serviceWorkerPath: '/OneSignalSDKWorker.js',
-          });
+          if (!OneSignal.initialized) {
+            await OneSignal.init({
+              appId: cleanAppId,
+              allowLocalhostAsSecureOrigin: true,
+              notifyButton: {
+                enable: false,
+              },
+              serviceWorkerParam: { scope: '/' },
+              serviceWorkerPath: '/OneSignalSDKWorker.js',
+            });
+          }
 
           isInitialized = true;
           currentAppId = cleanAppId;
-          console.log('[OneSignal] Initialized with App ID:', cleanAppId.slice(0, 8) + '...');
+          console.log('[OneSignal] SDK Initialized for App ID:', cleanAppId.slice(0, 8) + '...');
 
-          // If native notification permission is already granted, opt-in OneSignal push subscription
+          // If browser notification permission is granted, ensure user push subscription is opted-in
           if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
             try {
               if (OneSignal?.User?.PushSubscription?.optIn) {
@@ -88,81 +90,48 @@ export async function initOneSignal(appId: string): Promise<boolean> {
 export async function requestOneSignalPushPermission(): Promise<boolean> {
   if (typeof window === 'undefined') return false;
 
-  // 1. Fast path: check native browser Notification API permission
-  if ('Notification' in window) {
-    // If already granted, immediately try to opt in OneSignal user subscription and return true!
-    if (Notification.permission === 'granted') {
-      try {
-        window.OneSignalDeferred = window.OneSignalDeferred || [];
-        window.OneSignalDeferred.push(async (OneSignal: any) => {
-          try {
-            if (OneSignal?.User?.PushSubscription?.optIn) {
-              await OneSignal.User.PushSubscription.optIn();
-            }
-          } catch (e) {}
-        });
-      } catch (e) {}
-      return true;
-    }
-
-    // If denied by user, return false
-    if (Notification.permission === 'denied') {
-      return false;
-    }
-  }
-
-  // 2. Request permission with generous timeout for human interaction (30 seconds)
-  try {
-    let granted = false;
-
-    // Use OneSignal SDK requestPermission if available, or native Notification.requestPermission
-    if (window.OneSignal?.Notifications?.requestPermission) {
-      try {
-        const result = await Promise.race([
-          window.OneSignal.Notifications.requestPermission(),
-          new Promise<any>((resolve) => setTimeout(() => resolve(false), 30000))
-        ]);
-        granted = result === true || result === 'granted' || (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted');
-      } catch (sdkErr) {
-        console.warn('[OneSignal] SDK requestPermission notice:', sdkErr);
+  return new Promise<boolean>((resolve) => {
+    let resolved = false;
+    const safeResolve = (val: boolean) => {
+      if (!resolved) {
+        resolved = true;
+        resolve(val);
       }
-    }
+    };
 
-    if (!granted && 'Notification' in window) {
-      try {
-        const permResult = await Promise.race([
-          Notification.requestPermission(),
-          new Promise<NotificationPermission>((resolve) => setTimeout(() => resolve(Notification.permission), 30000))
-        ]);
-        granted = permResult === 'granted' || Notification.permission === 'granted';
-      } catch (nativeErr) {
-        console.warn('[OneSignal] Native requestPermission notice:', nativeErr);
-      }
-    }
+    // Safety timeout if browser prompt is pending or user ignores prompt
+    const timeout = setTimeout(() => {
+      const isGranted = 'Notification' in window && Notification.permission === 'granted';
+      safeResolve(isGranted);
+    }, 10000);
 
-    // Final check on permission status
-    if ('Notification' in window && Notification.permission === 'granted') {
-      granted = true;
-    }
+    try {
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      window.OneSignalDeferred.push(async (OneSignal: any) => {
+        try {
+          if (OneSignal?.Notifications?.requestPermission) {
+            await OneSignal.Notifications.requestPermission();
+          } else if ('Notification' in window) {
+            await Notification.requestPermission();
+          }
 
-    if (granted) {
-      try {
-        window.OneSignalDeferred = window.OneSignalDeferred || [];
-        window.OneSignalDeferred.push(async (OneSignal: any) => {
-          try {
-            if (OneSignal?.User?.PushSubscription?.optIn) {
-              await OneSignal.User.PushSubscription.optIn();
-            }
-          } catch (e) {}
-        });
-      } catch (e) {}
+          if (OneSignal?.User?.PushSubscription?.optIn) {
+            await OneSignal.User.PushSubscription.optIn();
+          }
+        } catch (err) {
+          console.warn('[OneSignal] Permission request notice:', err);
+        } finally {
+          clearTimeout(timeout);
+          const isGranted = 'Notification' in window && Notification.permission === 'granted';
+          safeResolve(isGranted);
+        }
+      });
+    } catch (e) {
+      clearTimeout(timeout);
+      const isGranted = 'Notification' in window && Notification.permission === 'granted';
+      safeResolve(isGranted);
     }
-
-    return granted;
-  } catch (err) {
-    console.warn('[Push] requestOneSignalPushPermission error:', err);
-    return typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted';
-  }
+  });
 }
 
 export async function isOneSignalPushSupported(): Promise<boolean> {
@@ -172,55 +141,37 @@ export async function isOneSignalPushSupported(): Promise<boolean> {
 
 export async function getOneSignalSubscriptionStatus(): Promise<boolean> {
   if (typeof window === 'undefined') return false;
+  if (!('Notification' in window)) return false;
+  if (Notification.permission !== 'granted') return false;
 
-  if ('Notification' in window && Notification.permission === 'granted') {
-    return true;
-  }
-
-  return new Promise((resolve) => {
-    let done = false;
-
-    const timer = setTimeout(() => {
-      if (!done) {
-        done = true;
-        const isGranted = typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted';
-        resolve(isGranted);
+  return new Promise<boolean>((resolve) => {
+    let resolved = false;
+    const safeResolve = (val: boolean) => {
+      if (!resolved) {
+        resolved = true;
+        resolve(val);
       }
+    };
+
+    const timeout = setTimeout(() => {
+      safeResolve(Notification.permission === 'granted');
     }, 2000);
 
     try {
       window.OneSignalDeferred = window.OneSignalDeferred || [];
-      window.OneSignalDeferred.push(async (OneSignal: any) => {
-        if (done) return;
+      window.OneSignalDeferred.push((OneSignal: any) => {
+        clearTimeout(timeout);
         try {
-          if (OneSignal?.User?.PushSubscription) {
-            const optedIn = OneSignal.User.PushSubscription.optedIn;
-            if (!done) {
-              done = true;
-              clearTimeout(timer);
-              resolve(!!optedIn || (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'));
-            }
-          } else {
-            if (!done) {
-              done = true;
-              clearTimeout(timer);
-              resolve(typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted');
-            }
-          }
+          const optedIn = OneSignal?.User?.PushSubscription?.optedIn;
+          safeResolve(!!optedIn || Notification.permission === 'granted');
         } catch {
-          if (!done) {
-            done = true;
-            clearTimeout(timer);
-            resolve(typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted');
-          }
+          safeResolve(Notification.permission === 'granted');
         }
       });
     } catch {
-      if (!done) {
-        done = true;
-        clearTimeout(timer);
-        resolve(typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted');
-      }
+      clearTimeout(timeout);
+      safeResolve(Notification.permission === 'granted');
     }
   });
 }
+
