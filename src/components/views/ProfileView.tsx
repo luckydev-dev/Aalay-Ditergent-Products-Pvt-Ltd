@@ -101,11 +101,13 @@ export const ProfileView: React.FC = () => {
               {displayName}
             </h2>
             <div className="flex items-center gap-1.5 flex-wrap">
-              {/* VIP badge */}
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#fbf2d9] text-[#b47a00] text-[10px] font-black shadow-xs">
-                <Crown size={12} className="fill-[#b47a00]" />
-                <span>{user.vipLevel}</span>
-              </span>
+              {/* VIP badge (shown only when assigned a VIP level) */}
+              {user.vipLevel && user.vipLevel !== 'No VIP' && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#fbf2d9] text-[#b47a00] text-[10px] font-black shadow-xs">
+                  <Crown size={12} className="fill-[#b47a00]" />
+                  <span>{user.vipLevel}</span>
+                </span>
+              )}
 
               {/* Upgraded Premium Interactive ID Pill */}
               <button

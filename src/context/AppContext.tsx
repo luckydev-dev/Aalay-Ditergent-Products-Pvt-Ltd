@@ -180,7 +180,7 @@ const DEFAULT_USER: UserProfile = {
   name: '',
   phone: '',
   id: '',
-  vipLevel: 'VIP 0',
+  vipLevel: 'No VIP',
   balance: 0,
   totalRecharge: 0,
   totalIncome: 0,
@@ -301,7 +301,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const sanitizedName = sanitizeUserName(parsed.name, parsed.phone);
           const inviteCode = parsed.invitationCode || String(Math.floor(100000 + Math.random() * 900000));
           const cleanRecharge = parsed.totalRecharge === 50000 ? 0 : (Number(parsed.totalRecharge) || 0);
-          const cleanIncome = parsed.totalIncome === 50005 ? 505 : (parsed.totalIncome === 50000 ? 500 : (Number(parsed.totalIncome) || 0));
+          const cleanIncome = parsed.totalIncome === 50005 ? 1005 : (parsed.totalIncome === 50000 ? (parsed.balance || 40) : (Number(parsed.totalIncome) || (parsed.balance || 40)));
+          const cleanVip = parsed.phone === '9510006797'
+            ? (parsed.vipLevel || 'VIP5')
+            : (parsed.vipLevel === 'VIP1' || !parsed.vipLevel || parsed.vipLevel === 'VIP 0' ? 'No VIP' : parsed.vipLevel);
           return {
             ...DEFAULT_USER,
             ...parsed,
@@ -309,6 +312,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             invitationCode: inviteCode,
             totalRecharge: cleanRecharge,
             totalIncome: cleanIncome,
+            vipLevel: cleanVip,
             avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
           };
         }
@@ -319,7 +323,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return DEFAULT_USER;
   });
 
-  // Purge any corrupted Lucky names and ensure valid invitation codes & accurate recharge metrics in registry
+  // Purge any corrupted Lucky names and ensure valid invitation codes, accurate recharge metrics & No VIP for normal users
   useEffect(() => {
     try {
       const stored = localStorage.getItem('aaley_all_registered_users');
@@ -334,10 +338,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const cleanName = sanitizeUserName(u.name, u.phone);
             const inviteCode = u.invitationCode || String(Math.floor(100000 + Math.random() * 900000));
             const cleanRecharge = u.totalRecharge === 50000 ? 0 : (Number(u.totalRecharge) || 0);
-            const cleanIncome = u.totalIncome === 50005 ? 505 : (u.totalIncome === 50000 ? 500 : (Number(u.totalIncome) || 0));
-            if (u.name !== cleanName || !u.invitationCode || u.totalRecharge !== cleanRecharge || u.totalIncome !== cleanIncome) {
+            const cleanIncome = u.totalIncome === 50005 ? 1005 : (u.totalIncome === 50000 ? (u.balance || 40) : (Number(u.totalIncome) || 0));
+            const cleanVip = u.phone === '9510006797'
+              ? (u.vipLevel || 'VIP5')
+              : (u.vipLevel === 'VIP1' || !u.vipLevel || u.vipLevel === 'VIP 0' ? 'No VIP' : u.vipLevel);
+            if (u.name !== cleanName || !u.invitationCode || u.totalRecharge !== cleanRecharge || u.totalIncome !== cleanIncome || u.vipLevel !== cleanVip) {
               updated = true;
-              return { ...u, name: cleanName, invitationCode: inviteCode, totalRecharge: cleanRecharge, totalIncome: cleanIncome };
+              return { ...u, name: cleanName, invitationCode: inviteCode, totalRecharge: cleanRecharge, totalIncome: cleanIncome, vipLevel: cleanVip };
             }
             return u;
           });
@@ -345,15 +352,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.setItem('aaley_all_registered_users', JSON.stringify(filtered));
         }
       }
-      // Also ensure current active user has clean name and recharge = 0 if un-recharged
+      // Also ensure current active user has clean name, No VIP if non-owner, and recharge = 0 if un-recharged
       setUser((prev) => {
         if (!prev.phone) return prev;
         const cleanName = sanitizeUserName(prev.name, prev.phone);
         const cleanCode = prev.invitationCode || String(Math.floor(100000 + Math.random() * 900000));
         const cleanRecharge = prev.totalRecharge === 50000 ? 0 : prev.totalRecharge;
-        const cleanIncome = prev.totalIncome === 50005 ? 505 : (prev.totalIncome === 50000 ? 500 : prev.totalIncome);
-        if (prev.name !== cleanName || !prev.invitationCode || prev.totalRecharge !== cleanRecharge || prev.totalIncome !== cleanIncome) {
-          return { ...prev, name: cleanName, invitationCode: cleanCode, totalRecharge: cleanRecharge, totalIncome: cleanIncome };
+        const cleanIncome = prev.totalIncome === 50005 ? 1005 : (prev.totalIncome === 50000 ? (prev.balance || 40) : prev.totalIncome);
+        const cleanVip = prev.phone === '9510006797'
+          ? (prev.vipLevel || 'VIP5')
+          : (prev.vipLevel === 'VIP1' || !prev.vipLevel || prev.vipLevel === 'VIP 0' ? 'No VIP' : prev.vipLevel);
+        if (prev.name !== cleanName || !prev.invitationCode || prev.totalRecharge !== cleanRecharge || prev.totalIncome !== cleanIncome || prev.vipLevel !== cleanVip) {
+          return { ...prev, name: cleanName, invitationCode: cleanCode, totalRecharge: cleanRecharge, totalIncome: cleanIncome, vipLevel: cleanVip };
         }
         return prev;
       });
@@ -685,15 +695,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (val.profile) {
                 lastSyncedPayloadRef.current['profile'] = JSON.stringify(val.profile);
                 const sanitizedProfileName = sanitizeUserName(val.profile.name, val.profile.phone);
+                const cleanRecharge = val.profile.totalRecharge === 50000 
+                  ? 0 
+                  : (Number(val.profile.totalRecharge) || 0);
+                const cleanIncome = val.profile.totalIncome === 50005 
+                  ? 1005 
+                  : (val.profile.totalIncome === 50000 ? (val.profile.balance || 40) : (Number(val.profile.totalIncome) || (val.profile.balance || 0)));
+                const cleanVip = val.profile.phone === '9510006797'
+                  ? (val.profile.vipLevel || 'VIP5')
+                  : (val.profile.vipLevel === 'VIP1' || !val.profile.vipLevel || val.profile.vipLevel === 'VIP 0' ? 'No VIP' : val.profile.vipLevel);
+
                 setUser((prev) => {
                   if (
                     prev.phone === val.profile.phone &&
                     prev.balance === val.profile.balance &&
                     prev.role === val.profile.role &&
-                    prev.vipLevel === val.profile.vipLevel &&
+                    prev.vipLevel === cleanVip &&
                     prev.name === sanitizedProfileName &&
-                    prev.totalRecharge === val.profile.totalRecharge &&
-                    prev.totalIncome === val.profile.totalIncome &&
+                    prev.totalRecharge === cleanRecharge &&
+                    prev.totalIncome === cleanIncome &&
                     prev.isLoggedIn === true
                   ) {
                     return prev;
@@ -706,6 +726,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
                     role: val.profile.role || prev.role || 'user',
                     uid: uid,
+                    totalRecharge: cleanRecharge,
+                    totalIncome: cleanIncome,
+                    vipLevel: cleanVip,
                     isLoggedIn: true,
                   };
                   saveUserToRegistry(updated);
@@ -1297,7 +1320,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         totalRecharge: typeof existingProfile?.totalRecharge === 'number' && existingProfile.totalRecharge !== 50000
           ? existingProfile.totalRecharge 
           : 0,
-        vipLevel: existingProfile?.vipLevel || (isOwnerAccount ? 'VIP5' : 'VIP1'),
+        vipLevel: isOwnerAccount 
+          ? 'VIP5' 
+          : (existingProfile?.vipLevel && existingProfile.vipLevel !== 'VIP1' && existingProfile.vipLevel !== 'VIP 0' ? existingProfile.vipLevel : 'No VIP'),
         spinsLeft: typeof existingProfile?.spinsLeft === 'number' ? existingProfile.spinsLeft : 1,
         invitationCode: existingProfile?.invitationCode || serverUserData?.invitationCode || String(Math.floor(100000 + Math.random() * 900000)),
         referredBy: existingProfile?.referredBy || serverUserData?.referredBy,
@@ -1676,7 +1701,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         name: cleanName,
         phone: cleanPhone,
         id: generatedId,
-        vipLevel: 'VIP1',
+        vipLevel: 'No VIP',
         balance: 40, // ₹40 Signup Welcome Bonus!
         totalRecharge: 0,
         totalIncome: 40,
@@ -1764,6 +1789,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         name: cleanName,
         phone: cleanPhone,
         id: cleanPhone.slice(-6),
+        vipLevel: 'No VIP',
         balance: 40,
         totalIncome: 40,
         totalRecharge: 0,
@@ -1918,13 +1944,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   };
 
+  const calculateVipLevel = (totalRecharge: number, currentVip: string, phone: string): string => {
+    if (phone === '9510006797') return currentVip || 'VIP 5';
+    let tierVip = 'No VIP';
+    if (totalRecharge >= 50000) tierVip = 'VIP 5';
+    else if (totalRecharge >= 20000) tierVip = 'VIP 4';
+    else if (totalRecharge >= 10000) tierVip = 'VIP 3';
+    else if (totalRecharge >= 5000) tierVip = 'VIP 2';
+    else if (totalRecharge >= 500) tierVip = 'VIP 1';
+
+    const getRank = (v: string) => {
+      const u = String(v || '').trim().toUpperCase();
+      if (u.includes('VIP 5') || u.includes('VIP5')) return 5;
+      if (u.includes('VIP 4') || u.includes('VIP4')) return 4;
+      if (u.includes('VIP 3') || u.includes('VIP3')) return 3;
+      if (u.includes('VIP 2') || u.includes('VIP2')) return 2;
+      if (u.includes('VIP 1') || u.includes('VIP1')) return 1;
+      return 0;
+    };
+
+    const currentRank = getRank(currentVip);
+    const tierRank = getRank(tierVip);
+    return tierRank > currentRank ? tierVip : (currentVip || tierVip);
+  };
+
+  const checkIsVip = (u: { vipLevel?: string; role?: string; phone?: string }): boolean => {
+    const userVip = String(u.vipLevel || '').trim().toUpperCase();
+    return (
+      u.role === 'owner' ||
+      u.phone === '9510006797' ||
+      (userVip !== '' &&
+        userVip !== 'VIP 0' &&
+        userVip !== 'VIP0' &&
+        userVip !== '0' &&
+        userVip !== 'NO VIP' &&
+        userVip !== 'NORMAL' &&
+        userVip !== 'NONE')
+    );
+  };
+
   const rechargeWallet = async (amount: number, channel: string): Promise<boolean> => {
-    // Add amount to user balance and totalRecharge
-    setUser((prev) => ({
-      ...prev,
-      balance: prev.balance + amount,
-      totalRecharge: prev.totalRecharge + amount,
-    }));
+    // Add amount to user balance and totalRecharge, and update VIP level
+    setUser((prev) => {
+      const newTotalRecharge = prev.totalRecharge + amount;
+      const newVipLevel = calculateVipLevel(newTotalRecharge, prev.vipLevel, prev.phone);
+      return {
+        ...prev,
+        balance: prev.balance + amount,
+        totalRecharge: newTotalRecharge,
+        vipLevel: newVipLevel,
+      };
+    });
 
     const newTx: TransactionRecord = {
       id: `tx-rech-${Date.now()}`,
@@ -2054,10 +2124,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const list: any[] = JSON.parse(storedUsers);
           const updatedList = list.map((u) => {
             if (u.uid === targetUid || u.phone === targetUid) {
+              const newTotalRech = (Number(u.totalRecharge) || 0) + amount;
+              const newVip = calculateVipLevel(newTotalRech, u.vipLevel, u.phone || '');
               return {
                 ...u,
                 balance: (Number(u.balance) || 0) + amount,
-                totalRecharge: (Number(u.totalRecharge) || 0) + amount,
+                totalRecharge: newTotalRech,
+                vipLevel: newVip,
               };
             }
             return u;
@@ -2073,9 +2146,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const prof = snap.val();
           const currentBalance = Number(prof.balance) || 0;
           const currentTotalRecharge = Number(prof.totalRecharge) || 0;
+          const newTotalRech = currentTotalRecharge + amount;
+          const newVip = calculateVipLevel(newTotalRech, prof.vipLevel, prof.phone || '');
           await update(userProfileRef, {
             balance: currentBalance + amount,
-            totalRecharge: currentTotalRecharge + amount,
+            totalRecharge: newTotalRech,
+            vipLevel: newVip,
           });
 
           const txRef = push(ref(rtdb, `users/${targetUid}/transactions`));
@@ -2100,11 +2176,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         targetUid === user.phone ||
         targetUid === user.uid
       ) {
-        setUser((prev) => ({
-          ...prev,
-          balance: prev.balance + amount,
-          totalRecharge: prev.totalRecharge + amount,
-        }));
+        setUser((prev) => {
+          const newTotalRech = prev.totalRecharge + amount;
+          const newVip = calculateVipLevel(newTotalRech, prev.vipLevel, prev.phone);
+          return {
+            ...prev,
+            balance: prev.balance + amount,
+            totalRecharge: newTotalRech,
+            vipLevel: newVip,
+          };
+        });
         setTransactions((prev) => [
           {
             id: `tx-adm-appr-${Date.now()}`,
@@ -2159,6 +2240,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const requestWithdrawal = (amount: number): { success: boolean; message: string } => {
+    if (!checkIsVip(user)) {
+      showToast('VIP Level required! Please deposit to upgrade your VIP level before withdrawing.');
+      return {
+        success: false,
+        message: 'VIP Level required! Please deposit to upgrade your VIP level before withdrawing.',
+      };
+    }
     if (!bankDetails.isSaved || !bankDetails.accountNumber) {
       return { success: false, message: 'Please bind your Bank Card first before withdrawing.' };
     }
@@ -2513,6 +2601,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const redeemGiftCode = (codeInput: string): { success: boolean; message: string; amount?: number } => {
+    if (!checkIsVip(user)) {
+      showToast('VIP Level required! Please deposit to upgrade your VIP level before claiming gift codes.');
+      return {
+        success: false,
+        message: 'VIP Level required! Please deposit to upgrade your VIP level before claiming gift codes.',
+      };
+    }
     const cleanCode = codeInput.trim().toUpperCase();
     if (!cleanCode) {
       return { success: false, message: 'Please enter a valid gift code.' };

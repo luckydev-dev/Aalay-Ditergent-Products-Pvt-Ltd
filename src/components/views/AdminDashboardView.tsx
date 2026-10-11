@@ -546,7 +546,7 @@ export const AdminDashboardView: React.FC = () => {
             phone: u.phone || '',
             role: u.role || 'user',
             balance: Number(u.balance) || 0,
-            vipLevel: u.vipLevel || 'VIP1',
+            vipLevel: u.vipLevel || (u.phone === '9510006797' ? 'VIP5' : 'No VIP'),
             totalRecharge: Number(u.totalRecharge) || 0,
             totalIncome: Number(u.totalIncome) || 0,
             invitationCode: u.invitationCode || '883921',
@@ -640,7 +640,7 @@ export const AdminDashboardView: React.FC = () => {
                   phone: prof.phone || '',
                   role: prof.role || 'user',
                   balance: Number(prof.balance) || 0,
-                  vipLevel: prof.vipLevel || 'VIP1',
+                  vipLevel: prof.vipLevel || (prof.phone === '9510006797' ? 'VIP5' : 'No VIP'),
                   totalRecharge: Number(prof.totalRecharge) || 0,
                   totalIncome: Number(prof.totalIncome) || 0,
                   invitationCode: prof.invitationCode || '883921',
@@ -717,7 +717,7 @@ export const AdminDashboardView: React.FC = () => {
                       phone: su.phone,
                       role: su.role || (su.phone === '9510006797' ? 'owner' : 'user'),
                       balance: Math.max(Number(su.balance) || 0, existingU?.balance || 0),
-                      vipLevel: su.vipLevel || existingU?.vipLevel || 'VIP1',
+                      vipLevel: su.vipLevel || existingU?.vipLevel || (su.phone === '9510006797' ? 'VIP5' : 'No VIP'),
                       totalRecharge: Math.max(Number(su.totalRecharge) || 0, existingU?.totalRecharge || 0),
                       totalIncome: Math.max(Number(su.totalIncome) || 0, existingU?.totalIncome || 0),
                       invitationCode: su.invitationCode || existingU?.invitationCode || '883921',
@@ -2015,7 +2015,7 @@ export const AdminDashboardView: React.FC = () => {
                             )}
                           </span>
                           <span className="px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-400 font-black text-[9px]">
-                            {u.vipLevel || 'VIP1'}
+                            {u.vipLevel || (u.phone === '9510006797' ? 'VIP5' : 'No VIP')}
                           </span>
                         </div>
                       </div>
@@ -2137,7 +2137,7 @@ export const AdminDashboardView: React.FC = () => {
 
                           <td className="py-3 px-3">
                             <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 font-black text-[10px]">
-                              {u.vipLevel || 'VIP1'}
+                              {u.vipLevel || (u.phone === '9510006797' ? 'VIP5' : 'No VIP')}
                             </span>
                           </td>
 

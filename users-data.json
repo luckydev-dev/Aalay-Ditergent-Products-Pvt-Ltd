@@ -10,7 +10,7 @@
     "activeMembersToday": 0,
     "teamMembers": [],
     "transactions": [],
-    "updatedAt": 1791695478912,
+    "updatedAt": 1791695732490,
     "teamRecharge": 0,
     "id": "006797",
     "vipLevel": "VIP5",
@@ -20,5 +20,28 @@
     "avatar": "https://i.ibb.co/JWBdHWpv/profile-picture.png",
     "role": "owner",
     "uid": "1j80WzkvbMZlrKuqmlj21H7ngNo1"
+  },
+  "8320778562": {
+    "name": "Test",
+    "phone": "8320778562",
+    "id": "778562",
+    "vipLevel": "No VIP",
+    "balance": 40,
+    "totalRecharge": 0,
+    "totalIncome": 40,
+    "spinsLeft": 1,
+    "invitationCode": "668133",
+    "activeMembersToday": 0,
+    "teamMembersCount": 0,
+    "teamRecharge": 0,
+    "level1CommissionRate": 10,
+    "isLoggedIn": true,
+    "avatar": "https://i.ibb.co/JWBdHWpv/profile-picture.png",
+    "role": "user",
+    "uid": "QWdsUmxM0aPhB34gFxwO59lpnpx2",
+    "createdAt": 1791696013405,
+    "teamMembers": [],
+    "transactions": [],
+    "updatedAt": 1791696014190
   }
 }
