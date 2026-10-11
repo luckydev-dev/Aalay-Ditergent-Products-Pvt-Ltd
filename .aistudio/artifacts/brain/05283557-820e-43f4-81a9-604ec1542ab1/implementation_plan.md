@@ -1,104 +1,93 @@
-# Application Enhancements Implementation Plan
+# Admin Permanent Account Deletion & Fresh Re-Registration
 
-Sleek, dark minimalist user experience featuring a clean splash loader, web push notification permission integration, admin-controlled Treasure Box gift codes, seamless product management, purchase animations, and VIP tier restrictions.
+Implement a complete, permanent account wipe feature in the Admin Dashboard that thoroughly removes a user's profile, credentials, financial history, and database records across Firebase Realtime Database and local storage, allowing deleted users to register anew as fresh accounts.
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> Key choices confirmed in Turn 1 clarification:
-> - **Splash Screen & Loader**: Dark minimalist aesthetic with glowing brand logo and smooth, subtle progress bar indicator.
-> - **OneSignal Push Notifications**: Permission prompt triggers 5 seconds after user login/registration (if not previously granted/dismissed), with automated triggers for daily credit claims and admin withdrawal alerts.
-> - **Treasure Box Gift Code System**: Full admin creation flow (code, reward amount, max redemptions, expiration date) with instant wallet crediting and claim history tracking.
+> The following architectural and UX choices have been confirmed based on user feedback:
 
-- **Confirmed Decision 1**: No Firestore or Firebase database SDK usage per strict user constraint. Local state management and Express backend persistence.
-- **Confirmed Decision 2**: Product editing in Admin dashboard will immediately commit edits to storage and sync live across client state.
-- **Confirmed Decision 3**: VIP level gating on products prevents non-VIP users from purchasing VIP-tiered products, while admins can manage VIP levels per user.
+- **Confirmed Decision 1**: **Full Data Eradication** — When an account is deleted, all associated data (profile, orders, transaction history, withdrawals, bank details, and security passwords) is wiped completely with no residual traces.
+- **Confirmed Decision 2**: **Unrestricted Direct Deletion** — The admin can delete any account directly, including owner accounts, without blocking gates.
+- **Confirmed Decision 3**: **Fresh Re-Registration Guarantee** — Once deleted, all registry duplicates and RTDB user nodes are removed so the mobile number can immediately register again as a brand-new user with a fresh ₹40 bonus and isolated state.
 
 ---
 
 ## 1. Overview & Core Concept
 
-This update refines the platform into a high-performance web application with zero clutter and high polish:
-- **Dark Minimalist Splash Loader**: Displays on app initialization and initial routing with subtle glowing branding and animated progress bar.
-- **Treasure Box Gift Code System**: Allows admins to issue custom gift codes that users redeem in a sleek modal for instant wallet rewards.
-- **OneSignal Web Push Integration**: Automated prompt sequence 5 seconds post-login and server-side/client push triggers for key events (daily rewards, withdrawals).
-- **Admin Product Edit & VIP Upgrades**: Solves product editing state bugs and introduces granular user VIP level assignments and product purchase restrictions.
-- **Purchase Delight**: Unique reward unlock modal with smooth non-looping particle burst animation upon product purchase.
+- **What It Does**: Adds a direct **Delete Account** capability within the Admin Dashboard (in both Desktop and Mobile views) that permanently removes user records from Firebase Realtime Database (`users/{uid}`), local system registries (`aaley_all_registered_users`), password caches (`aaley_user_passwords`), and per-phone session keys.
+- **Target Audience / Persona**: System Admins and Platform Owners managing user accounts, testing sign-up flows, or removing duplicate/test accounts.
+- **Key Value**: Provides a reliable, complete account reset workflow so deleted users can cleanly re-register without encountering "already registered" errors or inheriting stale balance and order records.
 
 ---
 
 ## 2. User Experience & Visual Design
 
 ### Key User Flows
-1. **Initial Load & Login**: User opens app -> Sees dark minimalist splash screen with glowing logo and progress bar -> Logs in -> After 5s delay, OneSignal permission prompt banner appears smoothly if not subscribed.
-2. **Treasure Box Redemption**: User opens "Redeem Gift Code" from wallet/dashboard -> Enters code -> Instant celebration effect and wallet credit updated.
-3. **Admin Gift Code Creation**: Admin creates gift codes with amount, max uses, and expiry date -> Views total redemptions & log.
-4. **Product Purchase & VIP Gating**: Non-VIP attempting to buy VIP product sees clear "Requires VIP Level X" upgrade trigger; VIP user buys product with confetti celebration animation.
+1. **Admin Navigates to Directory**: In the Admin Dashboard, Admin opens the **Users** tab (or views the Recent Users table on the Overview tab).
+2. **Action Trigger**: Next to "Set VIP", "Wallet", and "Make Owner", each user row/card features a dedicated **Delete** button styled with a trash icon (`Trash2`) and a crisp crimson hover state (`bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30`).
+3. **Instant Wiping Execution**: Clicking Delete instantly executes `deleteUserAccountInDb(user.uid, user.phone)`.
+4. **Immediate Feedback**: The user is removed from the directory list with smooth reactive filtering, and a confirmation toast appears: *"Account +91 {phone} permanently deleted. New registration now enabled."*
+5. **Re-Registration Flow**: When that person subsequently navigates to the Registration screen, the system accepts their mobile number with zero conflicts and initializes a fresh account with ₹40 signup bonus.
 
 ### Visual Identity & Theme
-- **Aesthetic Direction**: Sleek, dark futuristic luxury with minimalist slate/gold accents and smooth CSS transitions.
-- **Color Palette & Mood**: 
-  - Background: `#0B0E14` (Deep Space Dark)
-  - Card/Surface: `#151A23` with `#232B3A` subtle borders
-  - Primary Accent: `#3B82F6` (Electric Blue) & `#F59E0B` (VIP Gold)
-- **Typography & Hierarchy**: Clean sans-serif (`Inter` / system UI) with tabular numbers for monetary figures and high-contrast titles.
-- **Component Styling & Layout**: Dark glassmorphic panels, rounded borders (`rounded-2xl`), responsive mobile-first views.
-- **Interactive Feedback & Motion**: Single-burst non-looping canvas confetti/particle explosion on purchase; slick toast notifications; no infinite loop modal animations.
+- **Color Discipline**: 
+  - Structural Surface: Dark navy/slate backdrop (`#0b1730` and `bg-slate-900/90`).
+  - Action Accent: Rose/Crimson accent (`#E11D48` / `text-rose-400` / `bg-rose-500/20`) for destructive deletion affordances.
+- **Typography & Alignment**:
+  - Monospace tabular figures (`tabular-nums font-mono`) for phone numbers and balances.
+  - Clear single-line action buttons with `whitespace-nowrap shrink-0`.
 
 ---
 
 ## 3. Key Product Decisions & Trade-Offs
 
-- **Storage Strategy**:
-  - *Chosen Approach*: Node/Express server backend state persistence with client `localStorage` sync backup. Strictly zero Firestore SDK calls.
-  - *Why*: Compliance with strict user requirement against Firestore while ensuring resilient multi-user session state.
-- **OneSignal Integration Pattern**:
-  - *Chosen Approach*: Official OneSignal Web SDK initialization script loaded on demand with 5s delay post-login timer.
-  - *Why*: Prevents immediate aggressive popups on initial screen load while ensuring high opt-in rates.
+- **Decision 1: Cascading Multi-Storage Cleanup**
+  - *Chosen Approach*: Purge records simultaneously across Firebase RTDB (`users/{uid}`), top-level queue references, global localStorage registry (`aaley_all_registered_users`), credential maps (`aaley_user_passwords`), and user-scoped caches (`aaley_*_{phone}`).
+  - *Why*: Eliminates phantom entries that could otherwise trigger false duplicate-phone errors during subsequent registration.
+- **Decision 2: Active User Session Handling**
+  - *Chosen Approach*: If the currently logged-in account is deleted by an admin (or by the owner themselves), trigger `logout()` automatically to return the client to the unauthenticated login screen.
+  - *Why*: Prevents orphan sessions and runtime synchronization errors with missing RTDB paths.
 
 ---
 
 ## 4. Technical Architecture & Data Strategy
 
-### System Architecture Diagram
-
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Client Application                   │
-│                                                         │
-│  ┌──────────────────┐             ┌──────────────────┐  │
-│  │ Minimalist Splash│             │ OneSignal SDK    │  │
-│  │ & Loader State   │             │ 5s Post-Login    │  │
-│  └────────┬─────────┘             └────────┬─────────┘  │
-│           │                                │            │
-│  ┌────────▼─────────┐             ┌────────▼─────────┐  │
-│  │ User / VIP State │             │ Treasure Box     │  │
-│  │ & Wallet Store   │             │ Redemption Modal │  │
-│  └────────┬─────────┘             └────────┬─────────┘  │
-│           │                                │            │
-└───────────┼────────────────────────────────┼────────────┘
-            │                                │
-            │      HTTP REST API Requests    │
-            ▼                                ▼
-┌─────────────────────────────────────────────────────────┐
-│                  Express Server Backend                 │
-│                                                         │
-│  ┌──────────────────┐             ┌──────────────────┐  │
-│  │ Product & VIP    │             │ Gift Code        │  │
-│  │ Management Route │             │ Redemption Logic │  │
-│  └────────┴─────────┘             └──────────────────┘  │
-└─────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│                   Admin Dashboard                      │
+│   (Users Directory Table / Mobile User Cards)          │
+└──────────────────────────┬─────────────────────────────┘
+                           │ 1-Click "Delete" Action
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│      AppContext: deleteUserAccountInDb(uid, phone)     │
+└──────────────┬───────────────────────────┬─────────────┘
+               │                           │
+               ▼                           ▼
+┌──────────────────────────────┐ ┌──────────────────────┐
+│  Firebase Realtime Database  │ │    Local Storage     │
+│  - remove(users/{uid})       │ │  - registered_users  │
+│  - remove withdrawal_requests│ │  - user_passwords    │
+│  - remove recharge_requests  │ │  - user_{phone} keys │
+└──────────────────────────────┘ └──────────────────────┘
+               │
+               ▼
+┌────────────────────────────────────────────────────────┐
+│         Target Mobile Number Cleaned & Freed           │
+│   Ready for immediate fresh registration (/register)   │
+└────────────────────────────────────────────────────────┘
 ```
 
-### Data Model Entities
-
-1. **GiftCode**: `{ id, code, rewardAmount, maxClaims, timesClaimed, expiresAt, claimedBy: string[], createdAt }`
-2. **User**: `{ id, name, email, role, vipLevel, walletBalance, isSubscribedNotifications }`
-3. **Product**: `{ id, name, price, vipRequired, description, image, isActive, returnDaily }`
-
-### Interactive Component & State Mapping
-
-- **AdminProductModal**: Form submission updates server/local state and triggers active product list re-render immediately.
-- **TreasureBoxModal**: Form input submits gift code; checks claim count and expiration; credits wallet on success.
-- **OneSignalPrompt**: Checks `OneSignal.Notifications.permission` and local dismissal storage after 5s before rendering custom opt-in banner.
-- **PurchaseSuccessModal**: Plays single-cycle spring scale animation and celebration particles once on purchase completion.
+### Data Model & State Mapping
+- **`AppContextType`**:
+  - Expose `deleteUserAccountInDb: (targetUid: string, targetPhone?: string) => Promise<boolean>`.
+- **`deleteUserAccountInDb` Logic**:
+  1. Purge RTDB node `users/${targetUid}` via `set(ref(rtdb, 'users/' + targetUid), null)`.
+  2. Filter `targetUid` and `targetPhone` out of `aaley_all_registered_users`.
+  3. Remove keys from `aaley_user_passwords` for both `targetPhone` and `targetUid`.
+  4. Remove isolated cache entries: `aaley_user_${targetPhone}`, `aaley_bank_${targetPhone}`, `aaley_orders_${targetPhone}`, `aaley_transactions_${targetPhone}`, `aaley_withdrawals_${targetPhone}`.
+  5. If `targetUid === user.uid` or `targetPhone === user.phone`, trigger session `logout()`.
+- **`AdminDashboardView`**:
+  - Add `handleDeleteUser(user: SystemUserItem)` with toast feedback.
+  - Render Delete button in mobile cards grid and desktop table actions column.

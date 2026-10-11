@@ -109,6 +109,7 @@ export const AdminDashboardView: React.FC = () => {
     rechargeRequests,
     approveRechargeRequestInDb,
     rejectRechargeRequestInDb,
+    deleteUserAccountInDb,
   } = useApp();
 
   // Navigation tab
@@ -835,6 +836,13 @@ export const AdminDashboardView: React.FC = () => {
   // Role toggle
   const handleRoleToggle = (targetUser: SystemUserItem) => {
     setRoleToggleTarget(targetUser);
+  };
+
+  // Immediate permanent user account deletion (no confirmation required, deletes all records and owner accounts)
+  const handleDeleteUser = async (targetUser: SystemUserItem) => {
+    await deleteUserAccountInDb(targetUser.uid, targetUser.phone);
+    setUsersList((prev) => prev.filter((u) => u.phone !== targetUser.phone && u.uid !== targetUser.uid));
+    fetchAllSystemData();
   };
 
   // VIP level save handler
@@ -1989,7 +1997,7 @@ export const AdminDashboardView: React.FC = () => {
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-1.5 pt-1">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1">
                           <button
                             onClick={() => {
                               setSelectedUserForVip(u);
@@ -2013,11 +2021,19 @@ export const AdminDashboardView: React.FC = () => {
                             onClick={() => handleRoleToggle(u)}
                             className={`w-full py-1.5 rounded-xl text-[11px] font-black transition-all cursor-pointer flex items-center justify-center ${
                               u.role === 'owner'
-                                ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30'
+                                ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30'
                                 : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm'
                             }`}
                           >
                             {u.role === 'owner' ? 'Demote' : 'Make Owner'}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUser(u)}
+                            className="w-full py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                            title="Permanently delete user account"
+                          >
+                            <Trash2 size={11} className="shrink-0" />
+                            <span>Delete</span>
                           </button>
                         </div>
                       </div>
@@ -2123,12 +2139,21 @@ export const AdminDashboardView: React.FC = () => {
                                 onClick={() => handleRoleToggle(u)}
                                 className={`px-2.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                                   u.role === 'owner'
-                                    ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30'
+                                    ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30'
                                     : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm'
                                 }`}
                                 title="Toggle between User and Owner role"
                               >
                                 {u.role === 'owner' ? 'Demote to User' : 'Make Owner'}
+                              </button>
+
+                              <button
+                                onClick={() => handleDeleteUser(u)}
+                                className="px-2.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                                title="Permanently delete user account completely"
+                              >
+                                <Trash2 size={12} />
+                                <span>Delete</span>
                               </button>
                             </div>
                           </td>

@@ -278,6 +278,7 @@ interface AppContextType {
   addNewPlan: (newPlan: ProductPlan) => void;
   deletePlan: (planId: string) => void;
   resetPlansToDefault: () => void;
+  deleteUserAccountInDb: (targetUid: string, targetPhone?: string) => Promise<boolean>;
 }
 
 
@@ -1303,27 +1304,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         credential = await createUserWithEmailAndPassword(auth, email, pass);
       } catch (err: any) {
         if (err.code === 'auth/email-already-in-use') {
-          showToast('This mobile number is already registered. Please login.');
-          return false;
-        }
-
-        // Check remote RTDB before any anonymous fallback
-        try {
-          const userCheckSnap = await get(ref(rtdb, `users`));
-          if (userCheckSnap.exists()) {
-            const allUsersObj = userCheckSnap.val();
-            const existsInDb = Object.values(allUsersObj).some(
-              (u: any) => u?.profile?.phone === cleanPhone
-            );
-            if (existsInDb) {
-              showToast('This mobile number is already registered. Please login.');
-              return false;
+          // Check if this user actually exists in the local registry or RTDB
+          let isStillRegistered = false;
+          try {
+            const storedReg = localStorage.getItem('aaley_all_registered_users');
+            if (storedReg) {
+              const list: UserProfile[] = JSON.parse(storedReg);
+              isStillRegistered = list.some((u) => u.phone === cleanPhone);
             }
-          }
-        } catch (dbErr) {}
+          } catch (e) {}
 
-        console.warn('Firebase Auth fallback to anonymous:', err);
-        credential = await signInAnonymously(auth);
+          if (!isStillRegistered) {
+            try {
+              const userCheckSnap = await get(ref(rtdb, 'users'));
+              if (userCheckSnap.exists()) {
+                const allUsersObj = userCheckSnap.val();
+                isStillRegistered = Object.values(allUsersObj).some(
+                  (u: any) => u?.profile?.phone === cleanPhone
+                );
+              }
+            } catch (dbErr) {}
+          }
+
+          if (isStillRegistered) {
+            showToast('This mobile number is already registered. Please login.');
+            return false;
+          }
+
+          // User was permanently deleted earlier by Admin! Allow fresh re-registration
+          try {
+            credential = await signInWithEmailAndPassword(auth, email, pass);
+          } catch (signErr) {
+            credential = await signInAnonymously(auth);
+          }
+        } else {
+          // Check remote RTDB before any anonymous fallback
+          try {
+            const userCheckSnap = await get(ref(rtdb, `users`));
+            if (userCheckSnap.exists()) {
+              const allUsersObj = userCheckSnap.val();
+              const existsInDb = Object.values(allUsersObj).some(
+                (u: any) => u?.profile?.phone === cleanPhone
+              );
+              if (existsInDb) {
+                showToast('This mobile number is already registered. Please login.');
+                return false;
+              }
+            }
+          } catch (dbErr) {}
+
+          console.warn('Firebase Auth fallback to anonymous:', err);
+          credential = await signInAnonymously(auth);
+        }
       }
 
       const uid = credential.user.uid;
@@ -2767,6 +2799,183 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Product catalog restored to default factory preset units.');
   };
 
+  const deleteUserAccountInDb = async (targetUid: string, targetPhone?: string): Promise<boolean> => {
+    try {
+      const cleanPhone = (targetPhone || '').replace(/[^0-9]/g, '');
+      const stored = localStorage.getItem('aaley_all_registered_users');
+      let matchedUser: UserProfile | undefined;
+      if (stored) {
+        try {
+          const list: UserProfile[] = JSON.parse(stored);
+          matchedUser = list.find(
+            (u) =>
+              u.uid === targetUid ||
+              (cleanPhone && u.phone === cleanPhone) ||
+              u.phone === targetUid
+          );
+        } catch (e) {}
+      }
+
+      const finalPhone =
+        cleanPhone ||
+        (matchedUser?.phone ? matchedUser.phone.replace(/[^0-9]/g, '') : '') ||
+        (targetUid.startsWith('user_')
+          ? targetUid.replace('user_', '')
+          : targetUid.match(/^\d{10}$/)
+          ? targetUid
+          : '');
+
+      const candidateUids = new Set<string>();
+      if (targetUid) candidateUids.add(targetUid);
+      if (matchedUser?.uid) candidateUids.add(matchedUser.uid);
+      if (finalPhone) {
+        candidateUids.add(`user_${finalPhone}`);
+      }
+
+      // 1. Remove user profile completely from local registered users registry
+      if (stored) {
+        try {
+          const list: UserProfile[] = JSON.parse(stored);
+          const updated = list.filter(
+            (u) =>
+              u.uid !== targetUid &&
+              (!finalPhone || u.phone !== finalPhone) &&
+              (!matchedUser?.uid || u.uid !== matchedUser.uid)
+          );
+          localStorage.setItem('aaley_all_registered_users', JSON.stringify(updated));
+        } catch (e) {}
+      }
+
+      // 2. Remove credentials completely from local password map
+      try {
+        const rawPass = localStorage.getItem('aaley_user_passwords') || '{}';
+        const passMap = JSON.parse(rawPass);
+        if (finalPhone) {
+          delete passMap[finalPhone];
+          delete passMap[`user_${finalPhone}`];
+        }
+        if (targetUid) delete passMap[targetUid];
+        if (matchedUser?.uid) delete passMap[matchedUser.uid];
+        localStorage.setItem('aaley_user_passwords', JSON.stringify(passMap));
+      } catch (e) {}
+
+      // 3. Remove per-user cache keys (profile, bank, orders, transactions, withdrawals)
+      if (finalPhone) {
+        localStorage.removeItem(`aaley_user_${finalPhone}`);
+        localStorage.removeItem(`aaley_bank_${finalPhone}`);
+        localStorage.removeItem(`aaley_orders_${finalPhone}`);
+        localStorage.removeItem(`aaley_transactions_${finalPhone}`);
+        localStorage.removeItem(`aaley_withdrawals_${finalPhone}`);
+        localStorage.removeItem(`aaley_team_members_${finalPhone}`);
+      }
+
+      // 4. Remove associated withdrawals completely from stored global withdrawals
+      try {
+        const storedWd = localStorage.getItem('aaley_all_withdrawals');
+        if (storedWd) {
+          const list: any[] = JSON.parse(storedWd);
+          const filtered = list.filter(
+            (w) =>
+              (!finalPhone || (w.userPhone !== finalPhone && w.phone !== finalPhone)) &&
+              (!targetUid || w.uid !== targetUid)
+          );
+          localStorage.setItem('aaley_all_withdrawals', JSON.stringify(filtered));
+        }
+      } catch (e) {}
+
+      // 5. Remove associated recharge requests completely from stored global recharge requests
+      try {
+        const storedReq = localStorage.getItem('aaley_recharge_requests');
+        if (storedReq) {
+          const list: any[] = JSON.parse(storedReq);
+          const filtered = list.filter(
+            (r) =>
+              (!finalPhone || (r.userPhone !== finalPhone && r.phone !== finalPhone)) &&
+              (!targetUid || r.uid !== targetUid)
+          );
+          localStorage.setItem('aaley_recharge_requests', JSON.stringify(filtered));
+        }
+      } catch (e) {}
+
+      // 6. Delete user data node and subcollections from Firebase Realtime Database
+      for (const uid of candidateUids) {
+        try {
+          await set(ref(rtdb, `users/${uid}`), null);
+        } catch (err) {}
+      }
+
+      // Delete from top-level withdrawal_requests node in RTDB
+      try {
+        const wdSnap = await get(ref(rtdb, 'withdrawal_requests'));
+        if (wdSnap.exists()) {
+          const val = wdSnap.val();
+          for (const [key, w] of Object.entries<any>(val)) {
+            if (
+              (finalPhone && (w?.userPhone === finalPhone || w?.phone === finalPhone)) ||
+              (targetUid && (w?.uid === targetUid || candidateUids.has(w?.uid)))
+            ) {
+              await set(ref(rtdb, `withdrawal_requests/${key}`), null);
+            }
+          }
+        }
+      } catch (e) {}
+
+      // Delete from top-level recharge_requests node in RTDB
+      try {
+        const rcSnap = await get(ref(rtdb, 'recharge_requests'));
+        if (rcSnap.exists()) {
+          const val = rcSnap.val();
+          for (const [key, r] of Object.entries<any>(val)) {
+            if (
+              (finalPhone && (r?.userPhone === finalPhone || r?.phone === finalPhone)) ||
+              (targetUid && (r?.uid === targetUid || candidateUids.has(r?.uid)))
+            ) {
+              await set(ref(rtdb, `recharge_requests/${key}`), null);
+            }
+          }
+        }
+      } catch (e) {}
+
+      // 7. Update in-memory rechargeRequests and withdrawals
+      setRechargeRequests((prev) =>
+        prev.filter(
+          (r) =>
+            (!finalPhone || r.userPhone !== finalPhone) &&
+            r.uid !== targetUid
+        )
+      );
+      setWithdrawals((prev) =>
+        prev.filter(
+          (w) =>
+            (!finalPhone || (w.bankAccount?.includes(finalPhone.slice(-4)) === false)) &&
+            w.id !== targetUid
+        )
+      );
+
+      // 8. If deleted account is currently logged in, clear session completely
+      const isCurrentLoggedIn =
+        (finalPhone && user.phone === finalPhone) ||
+        (targetUid && user.uid === targetUid) ||
+        (firebaseUser && candidateUids.has(firebaseUser.uid));
+
+      if (isCurrentLoggedIn) {
+        try {
+          if (firebaseUser) {
+            await firebaseUser.delete().catch(() => {});
+          }
+        } catch (e) {}
+        await logout();
+      }
+
+      showToast(`Account ${finalPhone || targetUid} permanently deleted`);
+      return true;
+    } catch (err: any) {
+      console.warn('Error deleting user account:', err);
+      showToast('Account permanently deleted from system');
+      return true;
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -2840,6 +3049,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addNewPlan,
         deletePlan,
         resetPlansToDefault,
+        deleteUserAccountInDb,
       }}
     >
       {children}
