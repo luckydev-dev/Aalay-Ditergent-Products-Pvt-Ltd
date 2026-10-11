@@ -295,17 +295,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return {
-          ...DEFAULT_USER,
-          ...parsed,
-          avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
-        };
+        if (parsed && parsed.isLoggedIn && parsed.phone) {
+          return {
+            ...DEFAULT_USER,
+            ...parsed,
+            avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
+          };
+        }
       } catch (e) {
         // ignore
       }
     }
     return DEFAULT_USER;
   });
+
+  // Purge any ghost accounts that were created without registration
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('aaley_all_registered_users');
+      const passRaw = localStorage.getItem('aaley_user_passwords') || '{}';
+      const passwords = JSON.parse(passRaw);
+      if (stored) {
+        const list: UserProfile[] = JSON.parse(stored);
+        const filtered = list.filter((u) => u.phone === '9510006797' || (u.phone && passwords[u.phone]));
+        if (filtered.length !== list.length) {
+          localStorage.setItem('aaley_all_registered_users', JSON.stringify(filtered));
+        }
+      }
+    } catch (e) {}
+  }, []);
 
   const [bankDetails, setBankDetails] = useState<BankDetails>(() => {
     const saved = localStorage.getItem('aaley_bank');
@@ -522,6 +540,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Sync state changes to LocalStorage and Firebase RTDB
   useEffect(() => {
     localStorage.setItem('aaley_user', JSON.stringify(user));
+    if (user.isLoggedIn && user.phone) {
+      localStorage.setItem(`aaley_user_${user.phone}`, JSON.stringify(user));
+    }
     if (isInitialRtdbLoadedRef.current) {
       syncToRtdb('profile', user);
     }
@@ -529,31 +550,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     localStorage.setItem('aaley_bank', JSON.stringify(bankDetails));
+    if (user.isLoggedIn && user.phone) {
+      localStorage.setItem(`aaley_bank_${user.phone}`, JSON.stringify(bankDetails));
+    }
     if (isInitialRtdbLoadedRef.current) {
       syncToRtdb('bankDetails', bankDetails);
     }
-  }, [bankDetails]);
+  }, [bankDetails, user.isLoggedIn, user.phone]);
 
   useEffect(() => {
     localStorage.setItem('aaley_orders', JSON.stringify(orders));
+    if (user.isLoggedIn && user.phone) {
+      localStorage.setItem(`aaley_orders_${user.phone}`, JSON.stringify(orders));
+    }
     if (isInitialRtdbLoadedRef.current) {
       syncToRtdb('orders', orders);
     }
-  }, [orders]);
+  }, [orders, user.isLoggedIn, user.phone]);
 
   useEffect(() => {
     localStorage.setItem('aaley_transactions', JSON.stringify(transactions));
+    if (user.isLoggedIn && user.phone) {
+      localStorage.setItem(`aaley_transactions_${user.phone}`, JSON.stringify(transactions));
+    }
     if (isInitialRtdbLoadedRef.current) {
       syncToRtdb('transactions', transactions);
     }
-  }, [transactions]);
+  }, [transactions, user.isLoggedIn, user.phone]);
 
   useEffect(() => {
     localStorage.setItem('aaley_withdrawals', JSON.stringify(withdrawals));
+    if (user.isLoggedIn && user.phone) {
+      localStorage.setItem(`aaley_withdrawals_${user.phone}`, JSON.stringify(withdrawals));
+    }
     if (isInitialRtdbLoadedRef.current) {
       syncToRtdb('withdrawals', withdrawals);
     }
-  }, [withdrawals]);
+  }, [withdrawals, user.isLoggedIn, user.phone]);
 
   useEffect(() => {
     localStorage.setItem('aaley_missions', JSON.stringify(missions));
@@ -595,7 +628,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (val.profile) {
                 setUser((prev) => {
                   const updated: UserProfile = {
-                    ...prev,
+                    ...DEFAULT_USER,
                     ...val.profile,
                     avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
                     role: val.profile.role || prev.role || 'user',
@@ -633,23 +666,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 setTotalWonTreasure(val.totalWonTreasure);
               }
             } else {
-              // First time login for this user in RTDB: seed their initial state
-              set(userRef, {
-                profile: {
-                  ...user,
-                  isLoggedIn: true,
-                },
-                bankDetails: bankDetails,
-                orders: orders,
-                transactions: transactions,
-                withdrawals: withdrawals,
-                missions: missions,
-                redeemedCodes: redeemedCodes,
-                totalWonTreasure: totalWonTreasure,
-                createdAt: Date.now(),
-              }).catch(() => {
-                // Silently handle if rules deny write
-              });
+              // Only seed if user is explicitly logged in with an active profile
+              if (user.isLoggedIn && user.phone) {
+                set(userRef, {
+                  profile: user,
+                  bankDetails: bankDetails,
+                  orders: orders,
+                  transactions: transactions,
+                  withdrawals: withdrawals,
+                  missions: missions,
+                  redeemedCodes: redeemedCodes,
+                  totalWonTreasure: totalWonTreasure,
+                  createdAt: Date.now(),
+                }).catch(() => {
+                  // Silently handle if rules deny write
+                });
+              }
             }
             isInitialRtdbLoadedRef.current = true;
           },
@@ -1006,11 +1038,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const login = async (phone: string, nickname?: string, password?: string): Promise<boolean> => {
-    const maskedPhone = phone.replace(/[^0-9]/g, '') || '9510006797';
+    const maskedPhone = phone.replace(/[^0-9]/g, '');
+    if (!maskedPhone || maskedPhone.length < 10) {
+      showToast('Please enter a valid 10-digit mobile number');
+      return false;
+    }
+
+    const isOwnerPhone = maskedPhone === '9510006797';
     const email = phoneToEmail(maskedPhone);
     const storedPass = getUserPassword(maskedPhone);
 
-    // If user provided a password and we have an existing password recorded, verify it
+    // 1. Strict Registration Verification:
+    // Determine if this user is actually registered in local registry or RTDB
+    let existingProfile: UserProfile | null = null;
+    let existingRtdbData: any = null;
+
+    try {
+      const stored = localStorage.getItem('aaley_all_registered_users');
+      if (stored) {
+        const list: UserProfile[] = JSON.parse(stored);
+        const found = list.find((u) => u.phone === maskedPhone);
+        if (found) {
+          // Verify user was properly registered (has password, is owner, or was registered with timestamp)
+          if (storedPass || isOwnerPhone || found.createdAt) {
+            existingProfile = found;
+          }
+        }
+      }
+    } catch (e) {}
+
+    // Check remote RTDB for registered user if not found locally
+    if (!existingProfile && !isOwnerPhone) {
+      try {
+        const userCheckSnap = await get(ref(rtdb, 'users'));
+        if (userCheckSnap.exists()) {
+          const allUsersObj = userCheckSnap.val();
+          for (const [, v] of Object.entries<any>(allUsersObj)) {
+            if (v?.profile?.phone === maskedPhone) {
+              existingProfile = v.profile;
+              existingRtdbData = v;
+              break;
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // If mobile number has never registered, reject login!
+    if (!isOwnerPhone && !existingProfile && !storedPass) {
+      showToast('Account not found for this mobile number. Please register first.');
+      return false;
+    }
+
+    // 2. Password Check:
     if (password && storedPass && password !== storedPass) {
       showToast('Incorrect password. Please enter your valid password.');
       return false;
@@ -1021,54 +1101,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       : (storedPass || `aalay_${maskedPhone}_pass`);
 
     try {
-      // 1. Authenticate with Firebase Auth
+      // 3. Authenticate with Firebase Auth
       let credential;
       try {
         credential = await signInWithEmailAndPassword(auth, email, pass);
       } catch (signInErr: any) {
-        // If user doesn't exist or wrong credential, attempt creation
+        if (signInErr.code === 'auth/wrong-password') {
+          showToast('Incorrect password. Please enter your valid password.');
+          return false;
+        }
         if (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential') {
           try {
             credential = await createUserWithEmailAndPassword(auth, email, pass);
-          } catch (createErr) {
-            console.warn('Firebase Auth fallback to anonymous:', createErr);
+          } catch {
             credential = await signInAnonymously(auth);
           }
         } else {
-          console.warn('Firebase Auth fallback to anonymous:', signInErr);
           credential = await signInAnonymously(auth);
         }
       }
 
-      const uid = credential.user.uid;
+      const uid = credential?.user?.uid || existingProfile?.uid || `user_${maskedPhone}`;
 
-      // 2. Load or update profile safely
-      let existingProfile: any = null;
-      try {
-        const userRef = ref(rtdb, `users/${uid}`);
-        const snap = await get(userRef);
-        if (snap.exists()) {
-          existingProfile = snap.val()?.profile;
-        }
-      } catch (dbReadErr) {
-        // Silently handled if database rules restrict direct read
-      }
-
-      // Check local system registry if not fetched from remote
-      if (!existingProfile) {
+      // Load specific user record from RTDB if available
+      if (!existingRtdbData) {
         try {
-          const stored = localStorage.getItem('aaley_all_registered_users');
-          if (stored) {
-            const list: UserProfile[] = JSON.parse(stored);
-            existingProfile = list.find((u) => u.phone === maskedPhone || u.uid === uid);
+          const userRef = ref(rtdb, `users/${uid}`);
+          const snap = await get(userRef);
+          if (snap.exists()) {
+            existingRtdbData = snap.val();
+            if (existingRtdbData?.profile) {
+              existingProfile = existingRtdbData.profile;
+            }
           }
-        } catch (e) {
-          // ignore
-        }
+        } catch (dbReadErr) {}
       }
 
-      // Role check:
-      // Primary owner account is 9510006797 or luckypro387@gmail.com, or previously marked owner
       const isOwnerAccount =
         maskedPhone === '9510006797' ||
         email === 'luckypro387@gmail.com' ||
@@ -1076,46 +1144,115 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const determinedRole: UserRole = isOwnerAccount ? 'owner' : (existingProfile?.role || 'user');
 
-      const updatedUser: UserProfile = {
-        ...(existingProfile || user),
-        name: nickname || existingProfile?.name || user.name || 'Lucky',
+      // 4. Construct user profile strictly from isolated defaults and user's own data, NEVER from previous session
+      const finalUser: UserProfile = {
+        ...DEFAULT_USER,
+        ...(existingProfile || {}),
+        name: nickname || existingProfile?.name || `User_${maskedPhone.slice(-4)}`,
         phone: maskedPhone,
-        id: existingProfile?.id || maskedPhone.slice(-6) || '9516797',
+        id: existingProfile?.id || maskedPhone.slice(-6),
         isLoggedIn: true,
         avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
         role: determinedRole,
         uid: uid,
+        balance: typeof existingProfile?.balance === 'number' 
+          ? existingProfile.balance 
+          : (isOwnerAccount ? 50000 : 40),
+        totalIncome: typeof existingProfile?.totalIncome === 'number' 
+          ? existingProfile.totalIncome 
+          : (isOwnerAccount ? 50000 : 40),
+        totalRecharge: typeof existingProfile?.totalRecharge === 'number' 
+          ? existingProfile.totalRecharge 
+          : (isOwnerAccount ? 50000 : 0),
+        vipLevel: existingProfile?.vipLevel || (isOwnerAccount ? 'VIP5' : 'VIP1'),
+        spinsLeft: typeof existingProfile?.spinsLeft === 'number' ? existingProfile.spinsLeft : 1,
+        invitationCode: existingProfile?.invitationCode || String(Math.floor(100000 + Math.random() * 900000)),
       };
 
-      setUser(updatedUser);
-      saveUserToRegistry(updatedUser);
+      // 5. Load isolated user-specific data (bank, orders, tx, withdrawals)
+      let userBank: BankDetails = DEFAULT_BANK;
+      if (existingRtdbData?.bankDetails) {
+        userBank = existingRtdbData.bankDetails;
+      } else {
+        const storedBank = localStorage.getItem(`aaley_bank_${maskedPhone}`);
+        if (storedBank) {
+          try { userBank = JSON.parse(storedBank); } catch (e) {}
+        }
+      }
+
+      let userOrders: PurchasedOrder[] = [];
+      if (existingRtdbData?.orders) {
+        userOrders = Array.isArray(existingRtdbData.orders) ? existingRtdbData.orders : Object.values(existingRtdbData.orders);
+      } else {
+        const storedOrders = localStorage.getItem(`aaley_orders_${maskedPhone}`);
+        if (storedOrders) {
+          try { userOrders = JSON.parse(storedOrders); } catch (e) {}
+        }
+      }
+
+      let userTx: TransactionRecord[] = [];
+      if (existingRtdbData?.transactions) {
+        userTx = Array.isArray(existingRtdbData.transactions) ? existingRtdbData.transactions : Object.values(existingRtdbData.transactions);
+      } else {
+        const storedTx = localStorage.getItem(`aaley_transactions_${maskedPhone}`);
+        if (storedTx) {
+          try { userTx = JSON.parse(storedTx); } catch (e) {}
+        } else {
+          userTx = [
+            {
+              id: `tx-init-${Date.now()}`,
+              title: isOwnerAccount ? 'Admin Capital' : 'Signup Welcome Bonus',
+              amount: isOwnerAccount ? 50000 : 40,
+              type: 'income',
+              category: 'signup_bonus',
+              date: new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              status: 'completed',
+            },
+          ];
+        }
+      }
+
+      let userWithdrawals: WithdrawalRecord[] = [];
+      if (existingRtdbData?.withdrawals) {
+        userWithdrawals = Array.isArray(existingRtdbData.withdrawals) ? existingRtdbData.withdrawals : Object.values(existingRtdbData.withdrawals);
+      } else {
+        const storedWd = localStorage.getItem(`aaley_withdrawals_${maskedPhone}`);
+        if (storedWd) {
+          try { userWithdrawals = JSON.parse(storedWd); } catch (e) {}
+        }
+      }
+
+      // 6. Set isolated user states
+      setUser(finalUser);
+      setBankDetails(userBank);
+      setOrders(userOrders);
+      setTransactions(userTx);
+      setWithdrawals(userWithdrawals);
+
+      // Save to active and per-user storage
+      localStorage.setItem('aaley_user', JSON.stringify(finalUser));
+      localStorage.setItem('aaley_bank', JSON.stringify(userBank));
+      localStorage.setItem('aaley_orders', JSON.stringify(userOrders));
+      localStorage.setItem('aaley_transactions', JSON.stringify(userTx));
+      localStorage.setItem('aaley_withdrawals', JSON.stringify(userWithdrawals));
+      localStorage.setItem(`aaley_user_${maskedPhone}`, JSON.stringify(finalUser));
+      localStorage.setItem(`aaley_bank_${maskedPhone}`, JSON.stringify(userBank));
+      localStorage.setItem(`aaley_orders_${maskedPhone}`, JSON.stringify(userOrders));
+      localStorage.setItem(`aaley_transactions_${maskedPhone}`, JSON.stringify(userTx));
+      localStorage.setItem(`aaley_withdrawals_${maskedPhone}`, JSON.stringify(userWithdrawals));
+
+      saveUserToRegistry(finalUser);
       saveUserPassword(maskedPhone, pass, uid);
 
-      // Save to RTDB safely
       try {
-        await update(ref(rtdb, `users/${uid}/profile`), updatedUser);
-      } catch (dbWriteErr) {
-        // Silently handled
-      }
+        await update(ref(rtdb, `users/${uid}/profile`), finalUser);
+      } catch (dbWriteErr) {}
 
       showToast('Login Successful!');
       return true;
     } catch (err: any) {
-      // Resilient fallback so login never fails
-      const isOwnerPhone = maskedPhone === '9510006797';
-      const fallbackUser: UserProfile = {
-        ...user,
-        name: nickname || user.name || 'Lucky',
-        phone: maskedPhone,
-        isLoggedIn: true,
-        avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
-        role: isOwnerPhone ? 'owner' : (user.role || 'user'),
-      };
-      setUser(fallbackUser);
-      saveUserToRegistry(fallbackUser);
-      saveUserPassword(maskedPhone, pass);
-      showToast('Login Successful!');
-      return true;
+      showToast(err?.message || 'Login failed. Please check your credentials.');
+      return false;
     }
   };
 
@@ -1142,9 +1279,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return false;
         }
       }
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
 
     // 2. Check current saved user session
     try {
@@ -1226,9 +1361,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('aaley_orders', JSON.stringify([]));
       localStorage.setItem('aaley_withdrawals', JSON.stringify([]));
       localStorage.setItem('aaley_team_members', JSON.stringify([]));
+      localStorage.setItem(`aaley_bank_${cleanPhone}`, JSON.stringify(DEFAULT_BANK));
+      localStorage.setItem(`aaley_orders_${cleanPhone}`, JSON.stringify([]));
+      localStorage.setItem(`aaley_withdrawals_${cleanPhone}`, JSON.stringify([]));
+      localStorage.setItem(`aaley_team_members_${cleanPhone}`, JSON.stringify([]));
 
       setUser(newUser);
       localStorage.setItem('aaley_user', JSON.stringify(newUser));
+      localStorage.setItem(`aaley_user_${cleanPhone}`, JSON.stringify(newUser));
       saveUserToRegistry(newUser);
       saveUserPassword(cleanPhone, pass, uid);
 
@@ -1246,6 +1386,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setTransactions([initTx]);
       localStorage.setItem('aaley_transactions', JSON.stringify([initTx]));
+      localStorage.setItem(`aaley_transactions_${cleanPhone}`, JSON.stringify([initTx]));
 
       // Store in Firebase RTDB safely
       try {
@@ -1270,24 +1411,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast('Registration Successful! ₹40 Welcome Bonus credited.');
       return true;
     } catch (err: any) {
-      // Fallback
+      // Fallback cleanly from DEFAULT_USER
       const generatedCode = String(Math.floor(100000 + Math.random() * 900000));
       const fallbackUser: UserProfile = {
-        ...user,
+        ...DEFAULT_USER,
         name: cleanName,
         phone: cleanPhone,
         id: cleanPhone.slice(-6),
         balance: 40,
         totalIncome: 40,
+        totalRecharge: 0,
         spinsLeft: 1,
         invitationCode: generatedCode,
         level1CommissionRate: 10,
         isLoggedIn: true,
         role: cleanPhone === '9510006797' ? 'owner' : 'user',
+        avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
         createdAt: Date.now(),
       };
       setUser(fallbackUser);
+      setBankDetails(DEFAULT_BANK);
+      setOrders([]);
+      setWithdrawals([]);
+      setTeamMembers([]);
       localStorage.setItem('aaley_user', JSON.stringify(fallbackUser));
+      localStorage.setItem(`aaley_user_${cleanPhone}`, JSON.stringify(fallbackUser));
       saveUserToRegistry(fallbackUser);
       saveUserPassword(cleanPhone, pass);
       setActiveTab('home');
@@ -1304,12 +1452,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Firebase signout warning:', e);
     }
 
-    const loggedOutUser: UserProfile = {
-      ...user,
-      isLoggedIn: false,
-    };
-    setUser(loggedOutUser);
-    localStorage.setItem('aaley_user', JSON.stringify(loggedOutUser));
+    // 1. Reset user state to clean unauthenticated default
+    setUser(DEFAULT_USER);
+    setBankDetails(DEFAULT_BANK);
+    setOrders([]);
+    setTransactions([]);
+    setWithdrawals([]);
+    setTeamMembers([]);
+    setMissions(INITIAL_MISSIONS);
+    setRedeemedCodes([]);
+    setTotalWonTreasure(0);
+
+    // 2. Remove active session localStorage keys
+    localStorage.removeItem('aaley_user');
+    localStorage.removeItem('aaley_bank');
+    localStorage.removeItem('aaley_orders');
+    localStorage.removeItem('aaley_transactions');
+    localStorage.removeItem('aaley_withdrawals');
+    localStorage.removeItem('aaley_team_members');
+    localStorage.removeItem('aaley_redeemed_codes');
+    localStorage.removeItem('aaley_total_won_treasure');
+
     setSubScreen('none');
     setActiveTab('home');
     showToast('Logged out successfully');
