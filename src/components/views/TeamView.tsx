@@ -41,12 +41,13 @@ export const TeamView: React.FC = () => {
   const l3Income = l3Members.reduce((sum, m) => sum + (m.commissionEarned || 0), 0);
 
   const totalCommissionEarned = l1Income + l2Income + l3Income;
-  const invitationUrl = `${window.location.origin}/?ref=${user.invitationCode || '883921'}`;
+  const userInviteCode = user.invitationCode || (user.phone ? user.phone.slice(-6) : '883921');
+  const invitationUrl = `${window.location.origin}/?ref=${userInviteCode}`;
 
   const handleCopyCode = () => {
-    navigator.clipboard.writeText(user.invitationCode || '883921');
+    navigator.clipboard.writeText(userInviteCode);
     setCopiedCode(true);
-    showToast('Invitation Code copied!');
+    showToast(`Invitation Code ${userInviteCode} copied!`);
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
@@ -59,7 +60,7 @@ export const TeamView: React.FC = () => {
 
   const handleWhatsAppShare = () => {
     const text = encodeURIComponent(
-      `Join Aalay with my invitation code: ${user.invitationCode || '883921'}\nEarn up to 40% commission across 3 levels!\nLink: ${invitationUrl}`
+      `Join Aalay with my invitation code: ${userInviteCode}\nEarn instant rewards & up to 40% team commission across 3 levels!\nLink: ${invitationUrl}`
     );
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };

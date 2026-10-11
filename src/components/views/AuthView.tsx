@@ -5,7 +5,13 @@ import { HeroFactoryBanner } from '../common/HeroFactoryBanner';
 
 export const AuthView: React.FC = () => {
   const { login, register, showToast, setShowWelcomeModal } = useApp();
-  const [isRegister, setIsRegister] = useState(false);
+  const [isRegister, setIsRegister] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('ref') || localStorage.getItem('aaley_pending_ref')) return true;
+    }
+    return false;
+  });
   const [isLoading, setIsLoading] = useState(false);
 
   // Form states - pristine and empty for real user entry
@@ -13,7 +19,18 @@ export const AuthView: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
+  const [inviteCode, setInviteCode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const refParam = params.get('ref');
+      if (refParam) {
+        localStorage.setItem('aaley_pending_ref', refParam.trim());
+        return refParam.trim();
+      }
+      return localStorage.getItem('aaley_pending_ref') || '';
+    }
+    return '';
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(true);
@@ -69,7 +86,7 @@ export const AuthView: React.FC = () => {
           setShowWelcomeModal(true);
         }
       } else {
-        await login(cleanPhone, nickname || 'Lucky', password);
+        await login(cleanPhone, undefined, password);
       }
     } catch (err: any) {
       showToast(err?.message || 'Authentication error');

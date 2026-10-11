@@ -57,6 +57,7 @@ import { ProductImage } from '../common/ProductImage';
 import { rtdb, ref, get, set, onValue, off } from '../../firebase';
 import { UserRole, ProductPlan, RechargeRequest, GiftCode } from '../../types';
 import { calculateWalletMetrics } from '../../utils/wallet';
+import { sanitizeUserName } from '../../utils/userSanitizer';
 
 interface SystemUserItem {
   uid: string;
@@ -527,8 +528,10 @@ export const AdminDashboardView: React.FC = () => {
   const isOwner = user.role === 'owner' || isUnlockedDirectly;
 
   // Fetch all users and withdrawals combining local registry and remote database
-  const fetchAllSystemData = () => {
-    setIsLoading(true);
+  const fetchAllSystemData = (showSpinner = false) => {
+    if (showSpinner) {
+      setIsLoading(true);
+    }
 
     // 1. Load users from local registry
     const localUsers: SystemUserItem[] = [];
@@ -539,8 +542,8 @@ export const AdminDashboardView: React.FC = () => {
         parsed.forEach((u) => {
           localUsers.push({
             uid: u.uid || `user_${u.phone}`,
-            name: u.name || 'Lucky',
-            phone: u.phone || '9510006797',
+            name: sanitizeUserName(u.name, u.phone),
+            phone: u.phone || '',
             role: u.role || 'user',
             balance: Number(u.balance) || 0,
             vipLevel: u.vipLevel || 'VIP1',
@@ -560,7 +563,7 @@ export const AdminDashboardView: React.FC = () => {
     if (user.phone && !localUsers.some((u) => u.phone === user.phone)) {
       localUsers.unshift({
         uid: user.uid || 'current_user',
-        name: user.name,
+        name: sanitizeUserName(user.name, user.phone),
         phone: user.phone,
         role: user.role,
         balance: user.balance,
@@ -582,7 +585,7 @@ export const AdminDashboardView: React.FC = () => {
         parsedWd.forEach((w) => {
           localWithdrawals.push({
             uid: user.uid || 'self',
-            userName: user.name,
+            userName: sanitizeUserName(user.name, user.phone),
             userPhone: user.phone,
             withdrawalId: w.id,
             amount: Number(w.amount) || 0,
@@ -600,7 +603,7 @@ export const AdminDashboardView: React.FC = () => {
         parsedG.forEach((gw) => {
           localWithdrawals.push({
             uid: gw.uid || 'user',
-            userName: gw.userName || 'User',
+            userName: sanitizeUserName(gw.userName, gw.userPhone),
             userPhone: gw.userPhone || '9510006797',
             withdrawalId: gw.withdrawalId || gw.id,
             amount: Number(gw.amount) || 0,
@@ -633,8 +636,8 @@ export const AdminDashboardView: React.FC = () => {
               if (prof) {
                 remoteUsers.push({
                   uid,
-                  name: prof.name || 'Lucky',
-                  phone: prof.phone || '9510006797',
+                  name: sanitizeUserName(prof.name, prof.phone),
+                  phone: prof.phone || '',
                   role: prof.role || 'user',
                   balance: Number(prof.balance) || 0,
                   vipLevel: prof.vipLevel || 'VIP1',
@@ -653,9 +656,9 @@ export const AdminDashboardView: React.FC = () => {
                 wArr.forEach((w: any) => {
                   if (w && w.id) {
                     remoteWithdrawals.push({
-                      uid,
-                      userName: prof?.name || 'Lucky',
-                      userPhone: prof?.phone || '9510006797',
+                       uid,
+                       userName: sanitizeUserName(prof?.name, prof?.phone),
+                       userPhone: prof?.phone || '',
                       withdrawalId: w.id,
                       amount: Number(w.amount) || 0,
                       bankAccount: w.bankAccount || '•••• •••• 6797',
@@ -679,7 +682,7 @@ export const AdminDashboardView: React.FC = () => {
                 if (w && (w.withdrawalId || w.id)) {
                   remoteWithdrawals.push({
                     uid: w.uid || 'user',
-                    userName: w.userName || 'User',
+                    userName: sanitizeUserName(w.userName, w.userPhone),
                     userPhone: w.userPhone || '9510006797',
                     withdrawalId: w.withdrawalId || w.id,
                     amount: Number(w.amount) || 0,
@@ -698,6 +701,34 @@ export const AdminDashboardView: React.FC = () => {
           const mergedUsersMap = new Map<string, SystemUserItem>();
           localUsers.forEach((u) => mergedUsersMap.set(u.phone, u));
           remoteUsers.forEach((u) => mergedUsersMap.set(u.phone, u));
+
+          // Also pull from server registry
+          try {
+            const srvRes = await fetch('/api/users/all');
+            if (srvRes.ok) {
+              const srvData = await srvRes.json();
+              if (srvData && srvData.success && Array.isArray(srvData.users)) {
+                srvData.users.forEach((su: any) => {
+                  if (su.phone) {
+                    const existingU = mergedUsersMap.get(su.phone);
+                    mergedUsersMap.set(su.phone, {
+                      uid: su.uid || existingU?.uid || `user_${su.phone}`,
+                      name: sanitizeUserName(su.name, su.phone),
+                      phone: su.phone,
+                      role: su.role || (su.phone === '9510006797' ? 'owner' : 'user'),
+                      balance: Math.max(Number(su.balance) || 0, existingU?.balance || 0),
+                      vipLevel: su.vipLevel || existingU?.vipLevel || 'VIP1',
+                      totalRecharge: Math.max(Number(su.totalRecharge) || 0, existingU?.totalRecharge || 0),
+                      totalIncome: Math.max(Number(su.totalIncome) || 0, existingU?.totalIncome || 0),
+                      invitationCode: su.invitationCode || existingU?.invitationCode || '883921',
+                      avatar: su.avatar || existingU?.avatar || 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
+                      createdAt: su.createdAt || existingU?.createdAt || Date.now(),
+                    });
+                  }
+                });
+              }
+            }
+          } catch (e) {}
 
           const mergedWithdrawalsMap = new Map<string, SystemWithdrawalItem>();
           localWithdrawals.forEach((w) => mergedWithdrawalsMap.set(w.withdrawalId, w));
@@ -721,7 +752,7 @@ export const AdminDashboardView: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchAllSystemData();
+    fetchAllSystemData(true);
 
     // Safe subscription to users node
     try {
@@ -729,7 +760,7 @@ export const AdminDashboardView: React.FC = () => {
       onValue(
         usersRef,
         () => {
-          fetchAllSystemData();
+          fetchAllSystemData(false);
         },
         () => {
           // Safe standby
@@ -1184,7 +1215,7 @@ export const AdminDashboardView: React.FC = () => {
           {/* Right Action Lockup */}
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <button
-              onClick={fetchAllSystemData}
+              onClick={() => fetchAllSystemData(true)}
               className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/60 transition-all flex items-center gap-1.5 text-xs font-bold shrink-0"
               title="Refresh System Data"
             >

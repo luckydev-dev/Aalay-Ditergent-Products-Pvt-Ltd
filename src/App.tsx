@@ -41,7 +41,7 @@ const AppContent: React.FC = () => {
     return false;
   });
 
-  // Keep route in sync with browser URL
+  // Keep route in sync with browser navigation (popstate & hashchange)
   useEffect(() => {
     const handleUrlChange = () => {
       const isAdm =
@@ -49,23 +49,30 @@ const AppContent: React.FC = () => {
         window.location.hash === '#admin' ||
         window.location.hash === '#/admin' ||
         window.location.search.includes('admin');
-      setIsAdminRoute(isAdm);
-      if (isAdm && subScreen !== 'admin') {
+
+      setIsAdminRoute((prev) => (prev !== isAdm ? isAdm : prev));
+      if (isAdm) {
         setSubScreen('admin');
-      } else if (!isAdm && subScreen === 'admin') {
+      } else {
         setSubScreen('none');
       }
     };
 
     window.addEventListener('popstate', handleUrlChange);
     window.addEventListener('hashchange', handleUrlChange);
-    handleUrlChange();
 
     return () => {
       window.removeEventListener('popstate', handleUrlChange);
       window.removeEventListener('hashchange', handleUrlChange);
     };
-  }, [subScreen, setSubScreen]);
+  }, [setSubScreen]);
+
+  // Initial check on mount only
+  useEffect(() => {
+    if (isAdminRoute && subScreen !== 'admin') {
+      setSubScreen('admin');
+    }
+  }, []);
 
   // Sync window URL when subScreen is toggled internally
   useEffect(() => {
@@ -73,12 +80,12 @@ const AppContent: React.FC = () => {
       if (window.location.pathname !== '/admin' && window.location.hash !== '#/admin') {
         window.history.pushState(null, '', '/admin');
       }
-      setIsAdminRoute(true);
+      setIsAdminRoute((prev) => (prev ? prev : true));
     } else {
       if (window.location.pathname === '/admin') {
         window.history.pushState(null, '', '/');
       }
-      setIsAdminRoute(false);
+      setIsAdminRoute((prev) => (!prev ? prev : false));
     }
   }, [subScreen]);
 

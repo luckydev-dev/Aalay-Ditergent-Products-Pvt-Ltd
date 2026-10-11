@@ -825,5 +825,325 @@ Output JSON only in this exact format:
     }
   });
 
+  // ==========================================
+  // AUTHORITATIVE USERS & REFERRAL SUBSYSTEM
+  // ==========================================
+  const USERS_DATA_FILE = path.join(process.cwd(), 'users-data.json');
+
+  const sanitizeNameHelper = (name?: string | null, phone?: string | null): string => {
+    const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
+    if (!name || typeof name !== 'string') {
+      return cleanPhone === '9510006797' ? 'Owner' : (cleanPhone ? `User_${cleanPhone.slice(-4)}` : 'User');
+    }
+    const trimmed = name.trim();
+    if (!trimmed || trimmed.toLowerCase() === 'lucky') {
+      return cleanPhone === '9510006797' ? 'Owner' : (cleanPhone ? `User_${cleanPhone.slice(-4)}` : 'User');
+    }
+    return trimmed;
+  };
+
+  const loadServerUsers = (): Record<string, any> => {
+    try {
+      if (fs.existsSync(USERS_DATA_FILE)) {
+        const raw = fs.readFileSync(USERS_DATA_FILE, 'utf-8');
+        return JSON.parse(raw);
+      }
+    } catch (e) {
+      console.warn('[ServerUsers] Read error:', e);
+    }
+    return {};
+  };
+
+  const saveServerUsers = (users: Record<string, any>) => {
+    try {
+      fs.writeFileSync(USERS_DATA_FILE, JSON.stringify(users, null, 2), 'utf-8');
+    } catch (e) {
+      console.warn('[ServerUsers] Write error:', e);
+    }
+  };
+
+  // 1. Sync User Profile to Server (POST /api/users/sync)
+  app.post('/api/users/sync', (req, res) => {
+    try {
+      const { profile, teamMembers, transactions } = req.body;
+      if (!profile || !profile.phone) {
+        return res.status(400).json({ error: 'Valid profile and phone number required' });
+      }
+
+      const cleanPhone = String(profile.phone).replace(/[^0-9]/g, '');
+      const users = loadServerUsers();
+      const existing = users[cleanPhone] || {};
+
+      const sanitizedName = sanitizeNameHelper(profile.name || existing.name, cleanPhone);
+
+      users[cleanPhone] = {
+        ...existing,
+        ...profile,
+        name: sanitizedName,
+        phone: cleanPhone,
+        balance: typeof profile.balance === 'number' ? profile.balance : (existing.balance ?? 40),
+        totalIncome: typeof profile.totalIncome === 'number' ? profile.totalIncome : (existing.totalIncome ?? 40),
+        totalRecharge: typeof profile.totalRecharge === 'number' ? profile.totalRecharge : (existing.totalRecharge ?? 0),
+        invitationCode: profile.invitationCode || existing.invitationCode || String(Math.floor(100000 + Math.random() * 900000)),
+        referredBy: profile.referredBy || existing.referredBy,
+        teamMembersCount: typeof profile.teamMembersCount === 'number' ? profile.teamMembersCount : (existing.teamMembersCount ?? 0),
+        activeMembersToday: typeof profile.activeMembersToday === 'number' ? profile.activeMembersToday : (existing.activeMembersToday ?? 0),
+        teamMembers: Array.isArray(teamMembers) ? teamMembers : (existing.teamMembers || []),
+        transactions: Array.isArray(transactions) ? transactions : (existing.transactions || []),
+        updatedAt: Date.now(),
+      };
+
+      saveServerUsers(users);
+      return res.json({ success: true, user: users[cleanPhone] });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || 'Server user sync error' });
+    }
+  });
+
+  // 2. Fetch User Profile from Server (GET /api/users/profile)
+  app.get('/api/users/profile', (req, res) => {
+    try {
+      const phoneParam = req.query.phone;
+      if (!phoneParam || typeof phoneParam !== 'string') {
+        return res.status(400).json({ error: 'Phone number is required' });
+      }
+      const cleanPhone = phoneParam.replace(/[^0-9]/g, '');
+      const users = loadServerUsers();
+      const record = users[cleanPhone];
+      if (!record) {
+        return res.status(404).json({ error: 'User record not found on server' });
+      }
+      return res.json({ success: true, user: record });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || 'Failed to fetch user profile' });
+    }
+  });
+
+  // 2b. Fetch All Registered Users from Server (GET /api/users/all)
+  app.get('/api/users/all', (req, res) => {
+    try {
+      const users = loadServerUsers();
+      return res.json({ success: true, users: Object.values(users) });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || 'Failed to list users' });
+    }
+  });
+
+  // 3. Process Referral Connection and Award Instant Bonus (POST /api/referral/process)
+  app.post('/api/referral/process', (req, res) => {
+    try {
+      const { newUser, inviteCode } = req.body;
+      if (!newUser || !newUser.phone) {
+        return res.status(400).json({ success: false, error: 'Valid newUser object with phone is required' });
+      }
+
+      const cleanNewPhone = String(newUser.phone).replace(/[^0-9]/g, '');
+      const cleanInviteCode = String(inviteCode || '').trim();
+      const cleanNewName = sanitizeNameHelper(newUser.name, cleanNewPhone);
+
+      const users = loadServerUsers();
+
+      // Ensure new user exists in server registry
+      if (!users[cleanNewPhone]) {
+        users[cleanNewPhone] = {
+          ...newUser,
+          name: cleanNewName,
+          phone: cleanNewPhone,
+          balance: typeof newUser.balance === 'number' ? newUser.balance : 40,
+          totalIncome: typeof newUser.totalIncome === 'number' ? newUser.totalIncome : 40,
+          totalRecharge: Number(newUser.totalRecharge) || 0,
+          invitationCode: newUser.invitationCode || String(Math.floor(100000 + Math.random() * 900000)),
+          createdAt: Date.now(),
+          teamMembers: [],
+          transactions: [],
+        };
+      }
+
+      if (!cleanInviteCode) {
+        saveServerUsers(users);
+        return res.json({ success: false, message: 'No invitation code provided', user: users[cleanNewPhone] });
+      }
+
+      // Search for referrer across all known server accounts
+      let referrerPhone: string | null = null;
+      for (const [phone, u] of Object.entries(users)) {
+        if (phone === cleanNewPhone) continue;
+        if (
+          u.invitationCode === cleanInviteCode ||
+          phone === cleanInviteCode ||
+          phone.endsWith(cleanInviteCode)
+        ) {
+          referrerPhone = phone;
+          break;
+        }
+      }
+
+      if (!referrerPhone) {
+        console.log(`[Referral] Referrer not found for invite code: "${cleanInviteCode}" by user ${cleanNewPhone}`);
+        saveServerUsers(users);
+        return res.json({
+          success: false,
+          message: `Referral code "${cleanInviteCode}" not found on server registry.`,
+          user: users[cleanNewPhone],
+        });
+      }
+
+      const referrer = users[referrerPhone];
+      users[cleanNewPhone].referredBy = referrerPhone;
+
+      const refBonus = 50; // Instant ₹50 referral bonus credited to inviter
+      referrer.balance = (Number(referrer.balance) || 0) + refBonus;
+      referrer.totalIncome = (Number(referrer.totalIncome) || 0) + refBonus;
+      referrer.teamMembersCount = (Number(referrer.teamMembersCount) || 0) + 1;
+      referrer.activeMembersToday = (Number(referrer.activeMembersToday) || 0) + 1;
+
+      // Add new member to referrer's roster
+      const newMember = {
+        id: `tm-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        name: cleanNewName,
+        phone: cleanNewPhone,
+        joinedDate: new Date().toLocaleDateString('en-GB'),
+        joinDate: new Date().toLocaleDateString('en-GB'),
+        level: 1,
+        totalRecharge: 0,
+        commissionEarned: refBonus,
+        active: true,
+      };
+
+      const existingTm = Array.isArray(referrer.teamMembers) ? referrer.teamMembers : [];
+      referrer.teamMembers = [newMember, ...existingTm.filter((m: any) => m.phone !== cleanNewPhone)];
+
+      // Add referral reward transaction to referrer
+      const refTx = {
+        id: `tx-ref-${Date.now()}`,
+        title: `Referral Reward (Invited ${cleanNewName})`,
+        amount: refBonus,
+        type: 'income',
+        category: 'commission',
+        date:
+          new Date().toLocaleDateString('en-GB') +
+          ' ' +
+          new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        status: 'completed',
+      };
+
+      const existingTx = Array.isArray(referrer.transactions) ? referrer.transactions : [];
+      referrer.transactions = [refTx, ...existingTx];
+      referrer.updatedAt = Date.now();
+
+      saveServerUsers(users);
+
+      console.log(`[Referral] SUCCESS! ${cleanNewPhone} used ${cleanInviteCode} from ${referrerPhone}. Credited ₹${refBonus} to ${referrer.name} (${referrerPhone}). New Balance: ₹${referrer.balance}`);
+
+      return res.json({
+        success: true,
+        referrerPhone,
+        referrerName: referrer.name,
+        refBonus,
+        newUser: users[cleanNewPhone],
+        updatedReferrer: {
+          phone: referrer.phone,
+          balance: referrer.balance,
+          totalIncome: referrer.totalIncome,
+          teamMembersCount: referrer.teamMembersCount,
+          activeMembersToday: referrer.activeMembersToday,
+          latestTeamMember: newMember,
+          latestTransaction: refTx,
+        },
+      });
+    } catch (err: any) {
+      console.error('[Referral] Processing error:', err);
+      return res.status(500).json({ success: false, error: err.message || 'Referral processing error' });
+    }
+  });
+
+  // 4. Multi-Tier Recharge Commission Payout (POST /api/referral/recharge-commission)
+  app.post('/api/referral/recharge-commission', (req, res) => {
+    try {
+      const { userPhone, rechargeAmount } = req.body;
+      const cleanPhone = String(userPhone || '').replace(/[^0-9]/g, '');
+      const amount = Number(rechargeAmount);
+
+      if (!cleanPhone || isNaN(amount) || amount <= 0) {
+        return res.status(400).json({ error: 'Valid userPhone and positive rechargeAmount required' });
+      }
+
+      const users = loadServerUsers();
+      const rechargeUser = users[cleanPhone];
+      if (!rechargeUser || !rechargeUser.referredBy) {
+        return res.json({ success: true, message: 'User has no inviter; no referral commissions applied.' });
+      }
+
+      const commissionTiers = [
+        { level: 1, percent: 10 },
+        { level: 2, percent: 20 },
+        { level: 3, percent: 40 },
+      ];
+
+      const commissionsAwarded: any[] = [];
+      let currentInviterPhone = rechargeUser.referredBy;
+
+      for (let i = 0; i < commissionTiers.length; i++) {
+        if (!currentInviterPhone || !users[currentInviterPhone]) break;
+
+        const inviter = users[currentInviterPhone];
+        const tier = commissionTiers[i];
+        const commAmt = Math.round(amount * (tier.percent / 100));
+
+        if (commAmt > 0) {
+          inviter.balance = (Number(inviter.balance) || 0) + commAmt;
+          inviter.totalIncome = (Number(inviter.totalIncome) || 0) + commAmt;
+          inviter.teamRecharge = (Number(inviter.teamRecharge) || 0) + amount;
+
+          // Update member recharge in inviter's team roster
+          if (Array.isArray(inviter.teamMembers)) {
+            inviter.teamMembers = inviter.teamMembers.map((m: any) => {
+              if (m.phone === cleanPhone) {
+                return {
+                  ...m,
+                  totalRecharge: (Number(m.totalRecharge) || 0) + amount,
+                  commissionEarned: (Number(m.commissionEarned) || 0) + commAmt,
+                };
+              }
+              return m;
+            });
+          }
+
+          // Add commission transaction
+          const commTx = {
+            id: `tx-com-lvl${tier.level}-${Date.now()}`,
+            title: `Level ${tier.level} Commission (${tier.percent}%) · ${rechargeUser.name}`,
+            amount: commAmt,
+            type: 'income',
+            category: 'commission',
+            date:
+              new Date().toLocaleDateString('en-GB') +
+              ' ' +
+              new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            status: 'completed',
+          };
+
+          const existingTx = Array.isArray(inviter.transactions) ? inviter.transactions : [];
+          inviter.transactions = [commTx, ...existingTx];
+          inviter.updatedAt = Date.now();
+
+          commissionsAwarded.push({
+            inviterPhone: currentInviterPhone,
+            level: tier.level,
+            percent: tier.percent,
+            amount: commAmt,
+          });
+        }
+
+        currentInviterPhone = inviter.referredBy;
+      }
+
+      saveServerUsers(users);
+      return res.json({ success: true, commissionsAwarded });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || 'Commission payout error' });
+    }
+  });
+
   return app;
 }

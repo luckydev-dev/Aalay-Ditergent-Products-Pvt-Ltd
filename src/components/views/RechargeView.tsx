@@ -50,10 +50,15 @@ export const RechargeView: React.FC<RechargeViewProps> = ({ initialTab = 'rechar
         setActiveTab('history');
         if (orderId) {
           showToast(`Payment completed for order ${orderId}!`);
+          try {
+            const cleanUrl = window.location.pathname + window.location.hash;
+            window.history.replaceState(null, '', cleanUrl);
+          } catch (e) {}
         }
       }
     }
-  }, [showToast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSelectQuick = (amt: number) => {
     setSelectedAmount(amt);

@@ -24,9 +24,11 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { calculateWalletMetrics } from '../../utils/wallet';
+import { sanitizeUserName } from '../../utils/userSanitizer';
 
 export const ProfileView: React.FC = () => {
   const { user, logout, setSubScreen, setActiveTab, showToast, transactions } = useApp();
+  const displayName = sanitizeUserName(user.name, user.phone);
   const [copiedId, setCopiedId] = React.useState(false);
   const [copiedCode, setCopiedCode] = React.useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
@@ -96,7 +98,7 @@ export const ProfileView: React.FC = () => {
 
           <div className="space-y-1">
             <h2 className="text-xl font-black text-white leading-tight">
-              {user.name}
+              {displayName}
             </h2>
             <div className="flex items-center gap-1.5 flex-wrap">
               {/* VIP badge */}

@@ -38,6 +38,7 @@ export interface UserProfile {
   role: UserRole;
   uid?: string;
   createdAt?: number;
+  referredBy?: string;
 }
 
 export interface BankDetails {

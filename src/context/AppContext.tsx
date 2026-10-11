@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import {
   UserProfile,
   BankDetails,
@@ -37,6 +37,7 @@ import {
   phoneToEmail,
   FirebaseUser,
 } from '../firebase';
+import { sanitizeUserName } from '../utils/userSanitizer';
 
 export const DEFAULT_PLANS: ProductPlan[] = [
   {
@@ -297,9 +298,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.isLoggedIn && parsed.phone) {
+          const sanitizedName = sanitizeUserName(parsed.name, parsed.phone);
+          const inviteCode = parsed.invitationCode || String(Math.floor(100000 + Math.random() * 900000));
           return {
             ...DEFAULT_USER,
             ...parsed,
+            name: sanitizedName,
+            invitationCode: inviteCode,
             avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
           };
         }
@@ -310,7 +315,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return DEFAULT_USER;
   });
 
-  // Purge any ghost accounts that were created without registration
+  // Purge any corrupted Lucky names and ensure valid invitation codes in registry
   useEffect(() => {
     try {
       const stored = localStorage.getItem('aaley_all_registered_users');
@@ -318,11 +323,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const passwords = JSON.parse(passRaw);
       if (stored) {
         const list: UserProfile[] = JSON.parse(stored);
-        const filtered = list.filter((u) => u.phone === '9510006797' || (u.phone && passwords[u.phone]));
-        if (filtered.length !== list.length) {
+        let updated = false;
+        const filtered = list
+          .filter((u) => u.phone === '9510006797' || (u.phone && passwords[u.phone]))
+          .map((u) => {
+            const cleanName = sanitizeUserName(u.name, u.phone);
+            const inviteCode = u.invitationCode || String(Math.floor(100000 + Math.random() * 900000));
+            if (u.name !== cleanName || !u.invitationCode) {
+              updated = true;
+              return { ...u, name: cleanName, invitationCode: inviteCode };
+            }
+            return u;
+          });
+        if (updated || filtered.length !== list.length) {
           localStorage.setItem('aaley_all_registered_users', JSON.stringify(filtered));
         }
       }
+      // Also ensure current active user has clean name
+      setUser((prev) => {
+        if (!prev.phone) return prev;
+        const cleanName = sanitizeUserName(prev.name, prev.phone);
+        const cleanCode = prev.invitationCode || String(Math.floor(100000 + Math.random() * 900000));
+        if (prev.name !== cleanName || !prev.invitationCode) {
+          return { ...prev, name: cleanName, invitationCode: cleanCode };
+        }
+        return prev;
+      });
     } catch (e) {}
   }, []);
 
@@ -460,17 +486,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Safe helper to record any user in local system registry for offline/admin resilience
   const saveUserToRegistry = (userProfile: UserProfile) => {
     try {
+      const cleanName = sanitizeUserName(userProfile.name, userProfile.phone);
+      const profileToSave: UserProfile = {
+        ...userProfile,
+        name: cleanName,
+        invitationCode: userProfile.invitationCode || String(Math.floor(100000 + Math.random() * 900000)),
+      };
       const existingJson = localStorage.getItem('aaley_all_registered_users');
       let list: UserProfile[] = existingJson ? JSON.parse(existingJson) : [];
       const idx = list.findIndex(
-        (u) => (userProfile.uid && u.uid === userProfile.uid) || u.phone === userProfile.phone
+        (u) => (profileToSave.phone && u.phone === profileToSave.phone) || (profileToSave.uid && u.uid === profileToSave.uid)
       );
       if (idx >= 0) {
-        list[idx] = { ...list[idx], ...userProfile };
+        list[idx] = { ...list[idx], ...profileToSave };
       } else {
-        list.unshift(userProfile);
+        list.unshift(profileToSave);
       }
       localStorage.setItem('aaley_all_registered_users', JSON.stringify(list));
+
+      // Also sync user profile to server registry
+      fetch('/api/users/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile: profileToSave }),
+      }).catch(() => {});
     } catch (e) {
       console.warn('Failed to update local user registry:', e);
     }
@@ -521,15 +560,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Safe RTDB write helper for current user
+  // Ref to track last serialized payloads synced to/from RTDB to prevent feedback loops
+  const lastSyncedPayloadRef = useRef<Record<string, string>>({});
+
+  // Safe RTDB write helper for current user (with payload deduplication to prevent feedback loops)
   const syncToRtdb = (path: string, data: any) => {
-    // Only sync to RTDB when authenticated with a real Firebase Auth user
-    if (!firebaseUser || !firebaseUser.uid) {
+    // Only sync to RTDB when authenticated with a real Firebase Auth user (non-synthetic)
+    const authUid = auth.currentUser?.uid || firebaseUser?.uid;
+    if (!authUid || authUid.startsWith('user_')) {
       return;
     }
-    const uid = firebaseUser.uid;
+    const serialized = JSON.stringify(data);
+    if (lastSyncedPayloadRef.current[path] === serialized) {
+      return; // Deduplicate: payload unchanged since last sync/fetch
+    }
+    lastSyncedPayloadRef.current[path] = serialized;
+
     try {
-      const dataRef = ref(rtdb, `users/${uid}/${path}`);
+      const dataRef = ref(rtdb, `users/${authUid}/${path}`);
       set(dataRef, data).catch(() => {
         // Silently catch permission or network warnings
       });
@@ -627,10 +675,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const val = snapshot.val();
             if (val) {
               if (val.profile) {
+                lastSyncedPayloadRef.current['profile'] = JSON.stringify(val.profile);
+                const sanitizedProfileName = sanitizeUserName(val.profile.name, val.profile.phone);
                 setUser((prev) => {
+                  if (
+                    prev.phone === val.profile.phone &&
+                    prev.balance === val.profile.balance &&
+                    prev.role === val.profile.role &&
+                    prev.vipLevel === val.profile.vipLevel &&
+                    prev.name === sanitizedProfileName &&
+                    prev.totalRecharge === val.profile.totalRecharge &&
+                    prev.totalIncome === val.profile.totalIncome &&
+                    prev.isLoggedIn === true
+                  ) {
+                    return prev;
+                  }
                   const updated: UserProfile = {
                     ...DEFAULT_USER,
                     ...val.profile,
+                    name: sanitizedProfileName,
+                    invitationCode: val.profile.invitationCode || prev.invitationCode || String(Math.floor(100000 + Math.random() * 900000)),
                     avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
                     role: val.profile.role || prev.role || 'user',
                     uid: uid,
@@ -641,34 +705,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 });
               }
               if (val.bankDetails) {
-                setBankDetails(val.bankDetails);
+                lastSyncedPayloadRef.current['bankDetails'] = JSON.stringify(val.bankDetails);
+                setBankDetails((prev) =>
+                  JSON.stringify(prev) === JSON.stringify(val.bankDetails) ? prev : val.bankDetails
+                );
               }
               if (val.orders) {
                 const ordersArr = Array.isArray(val.orders) ? val.orders : Object.values(val.orders);
-                setOrders(ordersArr as PurchasedOrder[]);
+                lastSyncedPayloadRef.current['orders'] = JSON.stringify(ordersArr);
+                setOrders((prev) =>
+                  JSON.stringify(prev) === JSON.stringify(ordersArr) ? prev : (ordersArr as PurchasedOrder[])
+                );
               }
               if (val.transactions) {
                 const txArr = Array.isArray(val.transactions) ? val.transactions : Object.values(val.transactions);
-                setTransactions(txArr as TransactionRecord[]);
+                lastSyncedPayloadRef.current['transactions'] = JSON.stringify(txArr);
+                setTransactions((prev) =>
+                  JSON.stringify(prev) === JSON.stringify(txArr) ? prev : (txArr as TransactionRecord[])
+                );
               }
               if (val.withdrawals) {
                 const wdArr = Array.isArray(val.withdrawals) ? val.withdrawals : Object.values(val.withdrawals);
-                setWithdrawals(wdArr as WithdrawalRecord[]);
+                lastSyncedPayloadRef.current['withdrawals'] = JSON.stringify(wdArr);
+                setWithdrawals((prev) =>
+                  JSON.stringify(prev) === JSON.stringify(wdArr) ? prev : (wdArr as WithdrawalRecord[])
+                );
               }
               if (val.missions) {
                 const mArr = Array.isArray(val.missions) ? val.missions : Object.values(val.missions);
-                setMissions(mArr as TeamMission[]);
+                lastSyncedPayloadRef.current['missions'] = JSON.stringify(mArr);
+                setMissions((prev) =>
+                  JSON.stringify(prev) === JSON.stringify(mArr) ? prev : (mArr as TeamMission[])
+                );
               }
               if (val.redeemedCodes) {
                 const rcArr = Array.isArray(val.redeemedCodes) ? val.redeemedCodes : Object.values(val.redeemedCodes);
-                setRedeemedCodes(rcArr as string[]);
+                lastSyncedPayloadRef.current['redeemedCodes'] = JSON.stringify(rcArr);
+                setRedeemedCodes((prev) =>
+                  JSON.stringify(prev) === JSON.stringify(rcArr) ? prev : (rcArr as string[])
+                );
               }
               if (typeof val.totalWonTreasure === 'number') {
-                setTotalWonTreasure(val.totalWonTreasure);
+                lastSyncedPayloadRef.current['totalWonTreasure'] = JSON.stringify(val.totalWonTreasure);
+                setTotalWonTreasure((prev) => (prev === val.totalWonTreasure ? prev : val.totalWonTreasure));
               }
             } else {
-              // Only seed if user is explicitly logged in with an active profile
-              if (user.isLoggedIn && user.phone) {
+              // Only seed if user is explicitly logged in with an active profile and auth matches
+              if (user.isLoggedIn && user.phone && uid && !uid.startsWith('user_') && auth.currentUser?.uid === uid) {
                 set(userRef, {
                   profile: user,
                   bankDetails: bankDetails,
@@ -1031,12 +1114,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  const showToast = (msg: string) => {
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    toastTimeoutRef.current = setTimeout(() => {
       setToastMessage(null);
     }, 2800);
-  };
+  }, []);
 
   const login = async (phone: string, nickname?: string, password?: string): Promise<boolean> => {
     const maskedPhone = phone.replace(/[^0-9]/g, '');
@@ -1138,6 +1225,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } catch (dbReadErr) {}
       }
 
+      // Check server for authoritative user profile and referral earnings
+      let serverUserData: any = null;
+      try {
+        const srvRes = await fetch(`/api/users/profile?phone=${encodeURIComponent(maskedPhone)}`);
+        if (srvRes.ok) {
+          const srvJson = await srvRes.json();
+          if (srvJson && srvJson.user) {
+            serverUserData = srvJson.user;
+          }
+        }
+      } catch (e) {}
+
       const isOwnerAccount =
         maskedPhone === '9510006797' ||
         email === 'luckypro387@gmail.com' ||
@@ -1146,31 +1245,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const determinedRole: UserRole = isOwnerAccount ? 'owner' : (existingProfile?.role || 'user');
 
       // 4. Construct user profile strictly from isolated defaults and user's own data, NEVER from previous session
+      const resolvedName = sanitizeUserName(
+        existingProfile?.name || serverUserData?.name || nickname,
+        maskedPhone
+      );
+
+      const resolvedBalance = typeof serverUserData?.balance === 'number'
+        ? serverUserData.balance
+        : typeof existingProfile?.balance === 'number'
+        ? existingProfile.balance
+        : (isOwnerAccount ? 50000 : 40);
+
+      const resolvedTotalIncome = typeof serverUserData?.totalIncome === 'number'
+        ? serverUserData.totalIncome
+        : typeof existingProfile?.totalIncome === 'number'
+        ? existingProfile.totalIncome
+        : (isOwnerAccount ? 50000 : 40);
+
+      const resolvedTeamCount = typeof serverUserData?.teamMembersCount === 'number'
+        ? serverUserData.teamMembersCount
+        : typeof existingProfile?.teamMembersCount === 'number'
+        ? existingProfile.teamMembersCount
+        : 0;
+
+      const resolvedActiveToday = typeof serverUserData?.activeMembersToday === 'number'
+        ? serverUserData.activeMembersToday
+        : typeof existingProfile?.activeMembersToday === 'number'
+        ? existingProfile.activeMembersToday
+        : 0;
+
       const finalUser: UserProfile = {
         ...DEFAULT_USER,
         ...(existingProfile || {}),
-        name: nickname || existingProfile?.name || `User_${maskedPhone.slice(-4)}`,
+        name: resolvedName,
         phone: maskedPhone,
         id: existingProfile?.id || maskedPhone.slice(-6),
         isLoggedIn: true,
         avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
         role: determinedRole,
         uid: uid,
-        balance: typeof existingProfile?.balance === 'number' 
-          ? existingProfile.balance 
-          : (isOwnerAccount ? 50000 : 40),
-        totalIncome: typeof existingProfile?.totalIncome === 'number' 
-          ? existingProfile.totalIncome 
-          : (isOwnerAccount ? 50000 : 40),
+        balance: resolvedBalance,
+        totalIncome: resolvedTotalIncome,
         totalRecharge: typeof existingProfile?.totalRecharge === 'number' 
           ? existingProfile.totalRecharge 
           : (isOwnerAccount ? 50000 : 0),
         vipLevel: existingProfile?.vipLevel || (isOwnerAccount ? 'VIP5' : 'VIP1'),
         spinsLeft: typeof existingProfile?.spinsLeft === 'number' ? existingProfile.spinsLeft : 1,
-        invitationCode: existingProfile?.invitationCode || String(Math.floor(100000 + Math.random() * 900000)),
+        invitationCode: existingProfile?.invitationCode || serverUserData?.invitationCode || String(Math.floor(100000 + Math.random() * 900000)),
+        referredBy: existingProfile?.referredBy || serverUserData?.referredBy,
+        teamMembersCount: resolvedTeamCount,
+        activeMembersToday: resolvedActiveToday,
       };
 
-      // 5. Load isolated user-specific data (bank, orders, tx, withdrawals)
+      // 5. Load isolated user-specific data (bank, orders, tx, withdrawals, team)
       let userBank: BankDetails = DEFAULT_BANK;
       if (existingRtdbData?.bankDetails) {
         userBank = existingRtdbData.bankDetails;
@@ -1198,19 +1325,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const storedTx = localStorage.getItem(`aaley_transactions_${maskedPhone}`);
         if (storedTx) {
           try { userTx = JSON.parse(storedTx); } catch (e) {}
-        } else {
-          userTx = [
-            {
-              id: `tx-init-${Date.now()}`,
-              title: isOwnerAccount ? 'Admin Capital' : 'Signup Welcome Bonus',
-              amount: isOwnerAccount ? 50000 : 40,
-              type: 'income',
-              category: 'signup_bonus',
-              date: new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              status: 'completed',
-            },
-          ];
         }
+      }
+
+      // Merge server transactions if available
+      if (serverUserData?.transactions && Array.isArray(serverUserData.transactions)) {
+        const txMap = new Map<string, TransactionRecord>();
+        userTx.forEach((t) => txMap.set(t.id, t));
+        serverUserData.transactions.forEach((st: any) => txMap.set(st.id, st));
+        userTx = Array.from(txMap.values());
+      }
+
+      if (userTx.length === 0) {
+        userTx = [
+          {
+            id: `tx-init-${Date.now()}`,
+            title: isOwnerAccount ? 'Admin Capital' : 'Signup Welcome Bonus',
+            amount: isOwnerAccount ? 50000 : 40,
+            type: 'income',
+            category: 'signup_bonus',
+            date: new Date().toLocaleDateString('en-GB') + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            status: 'completed',
+          },
+        ];
       }
 
       let userWithdrawals: WithdrawalRecord[] = [];
@@ -1223,12 +1360,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
+      let userTeamMembers: TeamMember[] = [];
+      const storedTm = localStorage.getItem(`aaley_team_members_${maskedPhone}`);
+      if (storedTm) {
+        try { userTeamMembers = JSON.parse(storedTm); } catch (e) {}
+      }
+
+      // Merge server team members if available
+      if (serverUserData?.teamMembers && Array.isArray(serverUserData.teamMembers)) {
+        const tmMap = new Map<string, TeamMember>();
+        userTeamMembers.forEach((m) => tmMap.set(m.phone, m));
+        serverUserData.teamMembers.forEach((sm: any) => tmMap.set(sm.phone, sm));
+        userTeamMembers = Array.from(tmMap.values());
+      }
+
       // 6. Set isolated user states
       setUser(finalUser);
       setBankDetails(userBank);
       setOrders(userOrders);
       setTransactions(userTx);
       setWithdrawals(userWithdrawals);
+      setTeamMembers(userTeamMembers);
 
       // Save to active and per-user storage
       localStorage.setItem('aaley_user', JSON.stringify(finalUser));
@@ -1236,24 +1388,173 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('aaley_orders', JSON.stringify(userOrders));
       localStorage.setItem('aaley_transactions', JSON.stringify(userTx));
       localStorage.setItem('aaley_withdrawals', JSON.stringify(userWithdrawals));
+      localStorage.setItem('aaley_team_members', JSON.stringify(userTeamMembers));
       localStorage.setItem(`aaley_user_${maskedPhone}`, JSON.stringify(finalUser));
       localStorage.setItem(`aaley_bank_${maskedPhone}`, JSON.stringify(userBank));
       localStorage.setItem(`aaley_orders_${maskedPhone}`, JSON.stringify(userOrders));
       localStorage.setItem(`aaley_transactions_${maskedPhone}`, JSON.stringify(userTx));
       localStorage.setItem(`aaley_withdrawals_${maskedPhone}`, JSON.stringify(userWithdrawals));
+      localStorage.setItem(`aaley_team_members_${maskedPhone}`, JSON.stringify(userTeamMembers));
 
       saveUserToRegistry(finalUser);
       saveUserPassword(maskedPhone, pass, uid);
 
-      try {
-        await update(ref(rtdb, `users/${uid}/profile`), finalUser);
-      } catch (dbWriteErr) {}
+      const realAuthUid = credential?.user?.uid || auth.currentUser?.uid;
+      if (realAuthUid && !realAuthUid.startsWith('user_')) {
+        try {
+          await update(ref(rtdb, `users/${realAuthUid}/profile`), finalUser);
+        } catch (dbWriteErr) {}
+      }
 
       showToast('Login Successful!');
       return true;
     } catch (err: any) {
       showToast(err?.message || 'Login failed. Please check your credentials.');
       return false;
+    }
+  };
+
+  // Process referral connection, instant invite reward, and team assignment
+  const processReferralReward = async (newUser: UserProfile, inviteCode?: string) => {
+    const rawCode = (inviteCode || '').trim();
+    const cleanInviteCode = rawCode || localStorage.getItem('aaley_pending_ref') || '';
+    if (!cleanInviteCode) return;
+
+    const cleanNewName = sanitizeUserName(newUser.name, newUser.phone);
+    newUser.name = cleanNewName;
+
+    const refBonus = 50; // Instant ₹50 referral bonus credited to inviter
+    let serverReferrerPhone: string | null = null;
+
+    // 1. Post to Server Authoritative Registry
+    try {
+      const res = await fetch('/api/referral/process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          newUser,
+          inviteCode: cleanInviteCode,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.referrerPhone) {
+          serverReferrerPhone = data.referrerPhone;
+          newUser.referredBy = serverReferrerPhone || undefined;
+        }
+      }
+    } catch (srvErr) {
+      console.warn('Server referral endpoint note:', srvErr);
+    }
+
+    // 2. Process locally in browser registry
+    try {
+      const storedReg = localStorage.getItem('aaley_all_registered_users');
+      let list: UserProfile[] = storedReg ? JSON.parse(storedReg) : [];
+      const referrer = list.find(
+        (u) =>
+          u.phone !== newUser.phone &&
+          (u.invitationCode === cleanInviteCode ||
+            u.phone === cleanInviteCode ||
+            u.phone.endsWith(cleanInviteCode) ||
+            (serverReferrerPhone && u.phone === serverReferrerPhone))
+      );
+
+      const targetReferrerPhone = referrer ? referrer.phone : serverReferrerPhone;
+
+      if (targetReferrerPhone) {
+        newUser.referredBy = targetReferrerPhone;
+
+        // Update referrer in global registry list
+        const updatedList = list.map((u) => {
+          if (u.phone === targetReferrerPhone) {
+            return {
+              ...u,
+              balance: (Number(u.balance) || 0) + refBonus,
+              totalIncome: (Number(u.totalIncome) || 0) + refBonus,
+              teamMembersCount: (Number(u.teamMembersCount) || 0) + 1,
+              activeMembersToday: (Number(u.activeMembersToday) || 0) + 1,
+            };
+          }
+          return u;
+        });
+        localStorage.setItem('aaley_all_registered_users', JSON.stringify(updatedList));
+
+        // Update Referrer's individual user cache
+        const refUserKey = `aaley_user_${targetReferrerPhone}`;
+        const refSaved = localStorage.getItem(refUserKey);
+        if (refSaved) {
+          try {
+            const parsed = JSON.parse(refSaved);
+            parsed.balance = (Number(parsed.balance) || 0) + refBonus;
+            parsed.totalIncome = (Number(parsed.totalIncome) || 0) + refBonus;
+            parsed.teamMembersCount = (Number(parsed.teamMembersCount) || 0) + 1;
+            parsed.activeMembersToday = (Number(parsed.activeMembersToday) || 0) + 1;
+            localStorage.setItem(refUserKey, JSON.stringify(parsed));
+          } catch (e) {}
+        }
+
+        // Add to Referrer's Team Members roster
+        const newMemberEntry: TeamMember = {
+          id: `tm-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          name: cleanNewName,
+          phone: newUser.phone,
+          joinedDate: new Date().toLocaleDateString('en-GB'),
+          joinDate: new Date().toLocaleDateString('en-GB'),
+          level: 1,
+          totalRecharge: 0,
+          commissionEarned: refBonus,
+          active: true,
+        };
+
+        const refTmKey = `aaley_team_members_${targetReferrerPhone}`;
+        let existingTm: TeamMember[] = [];
+        try {
+          existingTm = JSON.parse(localStorage.getItem(refTmKey) || '[]');
+        } catch (e) {}
+        const updatedTm = [newMemberEntry, ...existingTm.filter((m) => m.phone !== newUser.phone)];
+        localStorage.setItem(refTmKey, JSON.stringify(updatedTm));
+
+        // Add Referral Reward Transaction for Referrer
+        const refTx: TransactionRecord = {
+          id: `tx-ref-${Date.now()}`,
+          title: `Referral Reward (Invited ${cleanNewName})`,
+          amount: refBonus,
+          type: 'income',
+          category: 'commission',
+          date:
+            new Date().toLocaleDateString('en-GB') +
+            ' ' +
+            new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          status: 'completed',
+        };
+
+        const refTxKey = `aaley_transactions_${targetReferrerPhone}`;
+        let existingTx: TransactionRecord[] = [];
+        try {
+          existingTx = JSON.parse(localStorage.getItem(refTxKey) || '[]');
+        } catch (e) {}
+        localStorage.setItem(refTxKey, JSON.stringify([refTx, ...existingTx]));
+
+        // If Referrer is currently logged in on this browser, update React state in real-time
+        if (user.phone === targetReferrerPhone && user.isLoggedIn) {
+          setUser((prev) => ({
+            ...prev,
+            balance: prev.balance + refBonus,
+            totalIncome: prev.totalIncome + refBonus,
+            teamMembersCount: prev.teamMembersCount + 1,
+            activeMembersToday: prev.activeMembersToday + 1,
+          }));
+          setTeamMembers((prev) => [newMemberEntry, ...prev.filter((m) => m.phone !== newUser.phone)]);
+          setTransactions((prev) => [refTx, ...prev]);
+          localStorage.setItem('aaley_team_members', JSON.stringify(updatedTm));
+        }
+
+        localStorage.removeItem('aaley_pending_ref');
+        showToast(`Invite code verified! ₹${refBonus} referral reward sent to inviter.`);
+      }
+    } catch (err) {
+      console.warn('Referral reward processing error:', err);
     }
   };
 
@@ -1294,7 +1595,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch (e) {}
 
-    const cleanName = nickname.trim() || `User_${cleanPhone.slice(-4)}`;
+    const cleanName = sanitizeUserName(nickname, cleanPhone);
     const email = phoneToEmail(cleanPhone);
     const pass = password && password.length >= 6 ? password : `aalay_${cleanPhone}_pass`;
 
@@ -1384,6 +1685,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createdAt: Date.now(),
       };
 
+      // Process referral bonus for inviter
+      await processReferralReward(newUser, inviteCode);
+
       // Reset state for newly registered account
       setBankDetails(DEFAULT_BANK);
       setOrders([]);
@@ -1421,21 +1725,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(`aaley_transactions_${cleanPhone}`, JSON.stringify([initTx]));
 
       // Store in Firebase RTDB safely
-      try {
-        await set(ref(rtdb, `users/${uid}`), {
-          profile: newUser,
-          bankDetails: DEFAULT_BANK,
-          orders: [],
-          transactions: [initTx],
-          withdrawals: [],
-          teamMembers: [],
-          missions: INITIAL_MISSIONS,
-          redeemedCodes: [],
-          totalWonTreasure: 0,
-          createdAt: Date.now(),
-        });
-      } catch (dbErr) {
-        // Silently handled
+      if (uid && !uid.startsWith('user_') && auth.currentUser?.uid === uid) {
+        try {
+          await set(ref(rtdb, `users/${uid}`), {
+            profile: newUser,
+            bankDetails: DEFAULT_BANK,
+            orders: [],
+            transactions: [initTx],
+            withdrawals: [],
+            teamMembers: [],
+            missions: INITIAL_MISSIONS,
+            redeemedCodes: [],
+            totalWonTreasure: 0,
+            createdAt: Date.now(),
+          });
+        } catch (dbErr) {
+          // Silently handled
+        }
       }
 
       setActiveTab('home');
@@ -1461,6 +1767,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
         createdAt: Date.now(),
       };
+
+      await processReferralReward(fallbackUser, inviteCode);
+
       setUser(fallbackUser);
       setBankDetails(DEFAULT_BANK);
       setOrders([]);
@@ -1571,14 +1880,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // 3. Update RTDB security metadata
-    const uid = user.uid || `user_${cleanPhone}`;
-    try {
-      await update(ref(rtdb, `users/${uid}/security`), {
-        passwordLastChanged: Date.now(),
-        hasCustomPassword: true,
-      });
-    } catch (e) {
-      // ignore
+    const realAuthUid = auth.currentUser?.uid;
+    if (realAuthUid && !realAuthUid.startsWith('user_')) {
+      try {
+        await update(ref(rtdb, `users/${realAuthUid}/security`), {
+          passwordLastChanged: Date.now(),
+          hasCustomPassword: true,
+        });
+      } catch (e) {
+        // ignore
+      }
     }
 
     showToast('Password updated successfully!');
@@ -1911,11 +2222,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('aaley_all_withdrawals', JSON.stringify([adminItem, ...storedGlobal.filter((w: any) => w.withdrawalId !== withdrawalId)]));
     } catch (e) {}
 
-    // Sync to Firebase RTDB under user node and top level withdrawal_requests
+    // Sync to Firebase RTDB under user node for authenticated users
     try {
-      const uid = user.uid || `user_${user.phone}`;
-      set(ref(rtdb, `users/${uid}/withdrawals/${withdrawalId}`), newWithdrawal).catch(() => {});
-      set(ref(rtdb, `withdrawal_requests/${withdrawalId}`), adminItem).catch(() => {});
+      const realAuthUid = auth.currentUser?.uid;
+      if (realAuthUid && !realAuthUid.startsWith('user_')) {
+        set(ref(rtdb, `users/${realAuthUid}/withdrawals/${withdrawalId}`), newWithdrawal).catch(() => {});
+      }
     } catch (e) {}
 
     // Send push notification to admins
@@ -2415,8 +2727,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       saveUserToRegistry(updated);
       return updated;
     });
-    const uid = firebaseUser?.uid || activeListenerRef.current;
-    if (uid) {
+    const uid = auth.currentUser?.uid || firebaseUser?.uid;
+    if (uid && !uid.startsWith('user_')) {
       try {
         await update(ref(rtdb, `users/${uid}/profile`), { role: newRole });
       } catch (e) {
@@ -2442,7 +2754,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
-      await update(ref(rtdb, `users/${targetUid}/profile`), { role });
+      if (targetUid && !targetUid.startsWith('user_') && auth.currentUser?.uid === targetUid) {
+        try {
+          await update(ref(rtdb, `users/${targetUid}/profile`), { role });
+        } catch (e) {}
+      }
       if (targetUid === (firebaseUser?.uid || activeListenerRef.current)) {
         setUser((prev) => ({ ...prev, role }));
       }
@@ -2472,11 +2788,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } catch (e) {}
       }
 
-      // 2. Update in RTDB
-      try {
-        await update(ref(rtdb, `users/${targetUid}/profile`), { vipLevel: newVipLevel });
-      } catch (e) {
-        console.debug('RTDB vip level update error:', e);
+      // 2. Update in RTDB if authorized
+      if (targetUid && !targetUid.startsWith('user_') && auth.currentUser?.uid === targetUid) {
+        try {
+          await update(ref(rtdb, `users/${targetUid}/profile`), { vipLevel: newVipLevel });
+        } catch (e) {}
       }
 
       // 3. Update in-memory active user if target matches
@@ -2532,31 +2848,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
-      const userProfileRef = ref(rtdb, `users/${targetUid}/profile`);
-      try {
-        const snap = await get(userProfileRef);
-        if (snap.exists()) {
-          const prof = snap.val();
-          const currentBalance = Number(prof.balance) || 0;
-          const newBalance = Math.max(0, currentBalance + deltaAmount);
-          await update(userProfileRef, { balance: newBalance });
+      if (targetUid && !targetUid.startsWith('user_') && auth.currentUser?.uid === targetUid) {
+        try {
+          const userProfileRef = ref(rtdb, `users/${targetUid}/profile`);
+          const snap = await get(userProfileRef);
+          if (snap.exists()) {
+            const prof = snap.val();
+            const currentBalance = Number(prof.balance) || 0;
+            const newBalance = Math.max(0, currentBalance + deltaAmount);
+            await update(userProfileRef, { balance: newBalance });
 
-          const txRef = push(ref(rtdb, `users/${targetUid}/transactions`));
-          await set(txRef, {
-            id: `tx-admin-${Date.now()}`,
-            title: reason || (deltaAmount >= 0 ? 'Admin Wallet Credit' : 'Admin Wallet Adjustment'),
-            amount: Math.abs(deltaAmount),
-            type: deltaAmount >= 0 ? 'income' : 'withdraw',
-            category: 'signup_bonus',
-            date:
-              new Date().toLocaleDateString('en-GB') +
-              ' ' +
-              new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            status: 'completed',
-          });
+            const txRef = push(ref(rtdb, `users/${targetUid}/transactions`));
+            await set(txRef, {
+              id: `tx-admin-${Date.now()}`,
+              title: reason || (deltaAmount >= 0 ? 'Admin Wallet Credit' : 'Admin Wallet Adjustment'),
+              amount: Math.abs(deltaAmount),
+              type: deltaAmount >= 0 ? 'income' : 'withdraw',
+              category: 'signup_bonus',
+              date:
+                new Date().toLocaleDateString('en-GB') +
+                ' ' +
+                new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              status: 'completed',
+            });
+          }
+        } catch (dbErr) {
+          // Silently handled
         }
-      } catch (dbErr) {
-        // Silently handled
       }
 
       if (targetUid === (firebaseUser?.uid || activeListenerRef.current) || targetUid === user.phone) {
@@ -2572,25 +2890,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const approveWithdrawalInDb = async (targetUid: string, withdrawalId: string): Promise<boolean> => {
     try {
-      // 1. Update in top-level withdrawal_requests node
-      try {
-        await update(ref(rtdb, `withdrawal_requests/${withdrawalId}`), { status: 'completed' });
-      } catch (e) {}
-
-      // 2. Update under user node
-      const snap = await get(ref(rtdb, `users/${targetUid}/withdrawals`));
-      if (snap.exists()) {
-        const val = snap.val();
-        let updated: any[];
-        if (Array.isArray(val)) {
-          updated = val.map((w: any) => (w && w.id === withdrawalId ? { ...w, status: 'completed' } : w));
-        } else {
-          updated = Object.values(val).map((w: any) => (w && w.id === withdrawalId ? { ...w, status: 'completed' } : w));
-        }
-        await set(ref(rtdb, `users/${targetUid}/withdrawals`), updated);
+      // 1. Update under user node in RTDB only if authorized for current user
+      if (targetUid && !targetUid.startsWith('user_') && auth.currentUser?.uid === targetUid) {
+        try {
+          const snap = await get(ref(rtdb, `users/${targetUid}/withdrawals`));
+          if (snap.exists()) {
+            const val = snap.val();
+            let updated: any[];
+            if (Array.isArray(val)) {
+              updated = val.map((w: any) => (w && w.id === withdrawalId ? { ...w, status: 'completed' } : w));
+            } else {
+              updated = Object.values(val).map((w: any) => (w && w.id === withdrawalId ? { ...w, status: 'completed' } : w));
+            }
+            await set(ref(rtdb, `users/${targetUid}/withdrawals`), updated);
+          }
+        } catch (e) {}
       }
 
-      // 3. Update local state if active user
+      // 2. Update local state if active user
       if (targetUid === user.uid || targetUid === user.phone || targetUid === (firebaseUser?.uid || activeListenerRef.current)) {
         setWithdrawals((prev) =>
           prev.map((w) => (w.id === withdrawalId ? { ...w, status: 'completed' } : w))
@@ -2600,7 +2917,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
       }
 
-      // 4. Update localStorage
+      // 3. Update localStorage
       try {
         const stored = JSON.parse(localStorage.getItem('aaley_withdrawals') || '[]');
         const updatedStored = stored.map((w: any) => (w.id === withdrawalId ? { ...w, status: 'completed' } : w));
@@ -2623,43 +2940,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       let refundAmount = 0;
 
-      // 1. Update in top-level withdrawal_requests node
+      // 1. Get withdrawal details from local registry to know refund amount
       try {
-        const reqSnap = await get(ref(rtdb, `withdrawal_requests/${withdrawalId}`));
-        if (reqSnap.exists()) {
-          refundAmount = Number(reqSnap.val().amount) || 0;
-          await update(ref(rtdb, `withdrawal_requests/${withdrawalId}`), { status: 'rejected' });
-        }
+        const storedGlobal = JSON.parse(localStorage.getItem('aaley_all_withdrawals') || '[]');
+        const found = storedGlobal.find((w: any) => w.withdrawalId === withdrawalId);
+        if (found) refundAmount = Number(found.amount) || 0;
       } catch (e) {}
 
-      // 2. Update under user node
-      const snap = await get(ref(rtdb, `users/${targetUid}/withdrawals`));
-      if (snap.exists()) {
-        const val = snap.val();
-        let entries = Array.isArray(val) ? val : Object.values(val);
-        const updated = entries.map((w: any) => {
-          if (w && w.id === withdrawalId) {
-            if (!refundAmount) refundAmount = Number(w.amount) || 0;
-            return { ...w, status: 'rejected' };
-          }
-          return w;
-        });
-        await set(ref(rtdb, `users/${targetUid}/withdrawals`), updated);
-      }
-
-      // 3. Refund amount to user balance in RTDB & local storage & state
-      if (refundAmount > 0) {
-        // Profile RTDB
+      // 2. Update under user node in RTDB only if authorized for current user
+      if (targetUid && !targetUid.startsWith('user_') && auth.currentUser?.uid === targetUid) {
         try {
-          const profSnap = await get(ref(rtdb, `users/${targetUid}/profile`));
-          if (profSnap.exists()) {
-            const currentBal = Number(profSnap.val().balance) || 0;
-            await update(ref(rtdb, `users/${targetUid}/profile`), {
-              balance: currentBal + refundAmount,
+          const snap = await get(ref(rtdb, `users/${targetUid}/withdrawals`));
+          if (snap.exists()) {
+            const val = snap.val();
+            let entries = Array.isArray(val) ? val : Object.values(val);
+            const updated = entries.map((w: any) => {
+              if (w && w.id === withdrawalId) {
+                if (!refundAmount) refundAmount = Number(w.amount) || 0;
+                return { ...w, status: 'rejected' };
+              }
+              return w;
             });
+            await set(ref(rtdb, `users/${targetUid}/withdrawals`), updated);
           }
         } catch (e) {}
+      }
 
+      // 3. Refund amount to user balance in local storage & state
+      if (refundAmount > 0) {
         // Active user state
         if (targetUid === user.uid || targetUid === user.phone || targetUid === (firebaseUser?.uid || activeListenerRef.current)) {
           setUser((prev) => ({
@@ -2826,11 +3134,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : '');
 
       const candidateUids = new Set<string>();
-      if (targetUid) candidateUids.add(targetUid);
-      if (matchedUser?.uid) candidateUids.add(matchedUser.uid);
-      if (finalPhone) {
-        candidateUids.add(`user_${finalPhone}`);
-      }
+      if (targetUid && !targetUid.startsWith('user_')) candidateUids.add(targetUid);
+      if (matchedUser?.uid && !matchedUser.uid.startsWith('user_')) candidateUids.add(matchedUser.uid);
 
       // 1. Remove user profile completely from local registered users registry
       if (stored) {
@@ -2897,44 +3202,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } catch (e) {}
 
-      // 6. Delete user data node and subcollections from Firebase Realtime Database
+      // 6. Delete user data node from Firebase Realtime Database ONLY if caller is authenticated as this user
+      const currentAuthUid = auth.currentUser?.uid || firebaseUser?.uid;
       for (const uid of candidateUids) {
-        try {
-          await set(ref(rtdb, `users/${uid}`), null);
-        } catch (err) {}
+        if (!uid || uid.startsWith('user_')) continue;
+        if (currentAuthUid && currentAuthUid === uid) {
+          try {
+            await set(ref(rtdb, `users/${uid}`), null);
+          } catch (err) {}
+        }
       }
-
-      // Delete from top-level withdrawal_requests node in RTDB
-      try {
-        const wdSnap = await get(ref(rtdb, 'withdrawal_requests'));
-        if (wdSnap.exists()) {
-          const val = wdSnap.val();
-          for (const [key, w] of Object.entries<any>(val)) {
-            if (
-              (finalPhone && (w?.userPhone === finalPhone || w?.phone === finalPhone)) ||
-              (targetUid && (w?.uid === targetUid || candidateUids.has(w?.uid)))
-            ) {
-              await set(ref(rtdb, `withdrawal_requests/${key}`), null);
-            }
-          }
-        }
-      } catch (e) {}
-
-      // Delete from top-level recharge_requests node in RTDB
-      try {
-        const rcSnap = await get(ref(rtdb, 'recharge_requests'));
-        if (rcSnap.exists()) {
-          const val = rcSnap.val();
-          for (const [key, r] of Object.entries<any>(val)) {
-            if (
-              (finalPhone && (r?.userPhone === finalPhone || r?.phone === finalPhone)) ||
-              (targetUid && (r?.uid === targetUid || candidateUids.has(r?.uid)))
-            ) {
-              await set(ref(rtdb, `recharge_requests/${key}`), null);
-            }
-          }
-        }
-      } catch (e) {}
 
       // 7. Update in-memory rechargeRequests and withdrawals
       setRechargeRequests((prev) =>
