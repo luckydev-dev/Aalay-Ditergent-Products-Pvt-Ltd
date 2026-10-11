@@ -259,7 +259,7 @@ interface AppContextType {
   buyPlan: (planId: string) => { success: boolean; message: string; purchasedPlan?: ProductPlan };
   collectOrderIncome: (orderId: string) => Promise<boolean>;
   spinLuckyDraw: (wonAmount: number) => void;
-  redeemGiftCode: (code: string) => { success: boolean; message: string; amount?: number };
+  redeemGiftCode: (code: string) => Promise<{ success: boolean; message: string; amount?: number }>;
   createGiftCode: (codeData: Omit<GiftCode, 'id' | 'timesClaimed' | 'createdAt'>) => GiftCode;
   updateGiftCode: (updatedCode: GiftCode) => void;
   deleteGiftCode: (id: string) => void;
@@ -341,7 +341,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const cleanIncome = u.totalIncome === 50005 ? 1005 : (u.totalIncome === 50000 ? (u.balance || 40) : (Number(u.totalIncome) || 0));
             const cleanVip = u.phone === '9510006797'
               ? (u.vipLevel || 'VIP5')
-              : (u.vipLevel === 'VIP1' || !u.vipLevel || u.vipLevel === 'VIP 0' ? 'No VIP' : u.vipLevel);
+              : (!u.vipLevel || u.vipLevel === 'VIP 0' ? 'No VIP' : u.vipLevel);
             if (u.name !== cleanName || !u.invitationCode || u.totalRecharge !== cleanRecharge || u.totalIncome !== cleanIncome || u.vipLevel !== cleanVip) {
               updated = true;
               return { ...u, name: cleanName, invitationCode: inviteCode, totalRecharge: cleanRecharge, totalIncome: cleanIncome, vipLevel: cleanVip };
@@ -361,7 +361,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const cleanIncome = prev.totalIncome === 50005 ? 1005 : (prev.totalIncome === 50000 ? (prev.balance || 40) : prev.totalIncome);
         const cleanVip = prev.phone === '9510006797'
           ? (prev.vipLevel || 'VIP5')
-          : (prev.vipLevel === 'VIP1' || !prev.vipLevel || prev.vipLevel === 'VIP 0' ? 'No VIP' : prev.vipLevel);
+          : (!prev.vipLevel || prev.vipLevel === 'VIP 0' ? 'No VIP' : prev.vipLevel);
         if (prev.name !== cleanName || !prev.invitationCode || prev.totalRecharge !== cleanRecharge || prev.totalIncome !== cleanIncome || prev.vipLevel !== cleanVip) {
           return { ...prev, name: cleanName, invitationCode: cleanCode, totalRecharge: cleanRecharge, totalIncome: cleanIncome, vipLevel: cleanVip };
         }
@@ -703,7 +703,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   : (val.profile.totalIncome === 50000 ? (val.profile.balance || 40) : (Number(val.profile.totalIncome) || (val.profile.balance || 0)));
                 const cleanVip = val.profile.phone === '9510006797'
                   ? (val.profile.vipLevel || 'VIP5')
-                  : (val.profile.vipLevel === 'VIP1' || !val.profile.vipLevel || val.profile.vipLevel === 'VIP 0' ? 'No VIP' : val.profile.vipLevel);
+                  : (!val.profile.vipLevel || val.profile.vipLevel === 'VIP 0' ? 'No VIP' : val.profile.vipLevel);
 
                 setUser((prev) => {
                   if (
@@ -1322,7 +1322,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : 0,
         vipLevel: isOwnerAccount 
           ? 'VIP5' 
-          : (existingProfile?.vipLevel && existingProfile.vipLevel !== 'VIP1' && existingProfile.vipLevel !== 'VIP 0' ? existingProfile.vipLevel : 'No VIP'),
+          : (existingProfile?.vipLevel && existingProfile.vipLevel !== 'VIP 0' ? existingProfile.vipLevel : 'No VIP'),
         spinsLeft: typeof existingProfile?.spinsLeft === 'number' ? existingProfile.spinsLeft : 1,
         invitationCode: existingProfile?.invitationCode || serverUserData?.invitationCode || String(Math.floor(100000 + Math.random() * 900000)),
         referredBy: existingProfile?.referredBy || serverUserData?.referredBy,
@@ -2600,7 +2600,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return clean;
   };
 
-  const redeemGiftCode = (codeInput: string): { success: boolean; message: string; amount?: number } => {
+  const redeemGiftCode = async (codeInput: string): Promise<{ success: boolean; message: string; amount?: number }> => {
     if (!checkIsVip(user)) {
       showToast('VIP Level required! Please deposit to upgrade your VIP level before claiming gift codes.');
       return {
@@ -2617,20 +2617,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'This gift code has already been redeemed!' };
     }
 
-    // 1. Check dynamic gift codes created by admin or default list
-    const foundCode = giftCodes.find((gc) => gc.code.toUpperCase() === cleanCode && gc.active);
+    try {
+      const res = await fetch('/api/gift-codes/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: cleanCode,
+          phone: user.phone,
+          userId: user.uid || user.phone,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const rewardAmount = data.amount || 50;
+        setRedeemedCodes((prev) => [...prev, cleanCode]);
+        setTotalWonTreasure((prev) => prev + rewardAmount);
+        setUser((prev) => {
+          const updated = {
+            ...prev,
+            balance: data.user?.balance ?? (prev.balance + rewardAmount),
+            totalIncome: data.user?.totalIncome ?? (prev.totalIncome + rewardAmount),
+          };
+          localStorage.setItem('aaley_user', JSON.stringify(updated));
+          return updated;
+        });
 
-    let rewardAmount = 0;
-    if (foundCode) {
-      if (foundCode.expiresAt && new Date(foundCode.expiresAt).getTime() < Date.now()) {
-        return { success: false, message: 'This gift code has expired.' };
+        const newTx: TransactionRecord = {
+          id: `tx-gift-${Date.now()}`,
+          title: `Treasure Box Code (${cleanCode})`,
+          amount: rewardAmount,
+          type: 'income',
+          category: 'treasure_code',
+          date:
+            new Date().toLocaleDateString('en-GB') +
+            ' ' +
+            new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          status: 'completed',
+        };
+
+        setTransactions((prev) => [newTx, ...prev]);
+        showToast(`Claimed ₹${rewardAmount} from gift code ${cleanCode}!`);
+        return { success: true, message: data.message, amount: rewardAmount };
+      } else {
+        return { success: false, message: data.message || data.error || 'Invalid gift code.' };
       }
-      if (foundCode.maxClaims > 0 && foundCode.timesClaimed >= foundCode.maxClaims) {
-        return { success: false, message: 'This gift code has reached its maximum redemption limit.' };
-      }
-      rewardAmount = foundCode.rewardAmount;
-    } else {
-      // Fallback preset codes
+    } catch (e: any) {
       const validCodes: Record<string, number> = {
         AALAY50: 50,
         AALEY50: 50,
@@ -2641,57 +2672,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         TELEGRAM77: 77,
         LUCKY88: 88,
       };
-      rewardAmount = validCodes[cleanCode] || (cleanCode.length >= 4 ? 35 : 0);
-    }
+      const rewardAmount = validCodes[cleanCode] || (cleanCode.length >= 4 ? 35 : 0);
+      if (rewardAmount <= 0) {
+        return { success: false, message: 'Invalid gift code. Check Telegram or contact Admin for active codes!' };
+      }
 
-    if (rewardAmount <= 0) {
-      return { success: false, message: 'Invalid gift code. Check Telegram or contact Admin for active codes!' };
-    }
+      setRedeemedCodes((prev) => [...prev, cleanCode]);
+      setTotalWonTreasure((prev) => prev + rewardAmount);
 
-    // Increment times claimed if dynamic
-    if (foundCode) {
-      const updatedGc: GiftCode = {
-        ...foundCode,
-        timesClaimed: foundCode.timesClaimed + 1,
-        claimedBy: [...(foundCode.claimedBy || []), user.phone || user.id],
+      setUser((prev) => {
+        const updated = {
+          ...prev,
+          balance: prev.balance + rewardAmount,
+          totalIncome: prev.totalIncome + rewardAmount,
+        };
+        localStorage.setItem('aaley_user', JSON.stringify(updated));
+        return updated;
+      });
+
+      const newTx: TransactionRecord = {
+        id: `tx-gift-${Date.now()}`,
+        title: `Treasure Box Code (${cleanCode})`,
+        amount: rewardAmount,
+        type: 'income',
+        category: 'treasure_code',
+        date:
+          new Date().toLocaleDateString('en-GB') +
+          ' ' +
+          new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        status: 'completed',
       };
 
-      setGiftCodes((prev) =>
-        prev.map((gc) => (gc.id === foundCode.id ? updatedGc : gc))
-      );
-
-      try {
-        const cleanData = sanitizeGiftCodeForFirebase(updatedGc);
-        set(ref(rtdb, `config/gift_codes/${foundCode.id}`), cleanData).catch(() => {});
-        set(ref(rtdb, `gift_codes/${foundCode.id}`), cleanData).catch(() => {});
-      } catch (e) {}
+      setTransactions((prev) => [newTx, ...prev]);
+      showToast(`Claimed ₹${rewardAmount} from gift code ${cleanCode}!`);
+      return { success: true, message: `Congratulations! ₹${rewardAmount} added to your wallet balance.`, amount: rewardAmount };
     }
-
-    setRedeemedCodes((prev) => [...prev, cleanCode]);
-    setTotalWonTreasure((prev) => prev + rewardAmount);
-
-    setUser((prev) => ({
-      ...prev,
-      balance: prev.balance + rewardAmount,
-      totalIncome: prev.totalIncome + rewardAmount,
-    }));
-
-    const newTx: TransactionRecord = {
-      id: `tx-gift-${Date.now()}`,
-      title: `Treasure Box Code (${cleanCode})`,
-      amount: rewardAmount,
-      type: 'income',
-      category: 'treasure_code',
-      date:
-        new Date().toLocaleDateString('en-GB') +
-        ' ' +
-        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'completed',
-    };
-
-    setTransactions((prev) => [newTx, ...prev]);
-    showToast(`Claimed ₹${rewardAmount} from gift code ${cleanCode}!`);
-    return { success: true, message: `Congratulations! ₹${rewardAmount} added to your wallet balance.`, amount: rewardAmount };
   };
 
   const createGiftCode = (codeData: Omit<GiftCode, 'id' | 'timesClaimed' | 'createdAt'>): GiftCode => {
@@ -2907,32 +2922,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateUserRoleInDb = async (targetUid: string, role: 'user' | 'owner'): Promise<boolean> => {
     try {
+      let updatedProfile: any = null;
       // Update local system registry
       const stored = localStorage.getItem('aaley_all_registered_users');
       if (stored) {
         try {
           const list: UserProfile[] = JSON.parse(stored);
-          const updatedList = list.map((u) =>
-            u.uid === targetUid || u.phone === targetUid ? { ...u, role } : u
-          );
+          const updatedList = list.map((u) => {
+            if (u.uid === targetUid || u.phone === targetUid) {
+              const updated = { ...u, role };
+              updatedProfile = updated;
+              return updated;
+            }
+            return u;
+          });
           localStorage.setItem('aaley_all_registered_users', JSON.stringify(updatedList));
-        } catch (e) {
-          // ignore
-        }
-      }
-
-      if (targetUid && !targetUid.startsWith('user_') && auth.currentUser?.uid === targetUid) {
-        try {
-          await update(ref(rtdb, `users/${targetUid}/profile`), { role });
         } catch (e) {}
       }
-      if (targetUid === (firebaseUser?.uid || activeListenerRef.current)) {
-        setUser((prev) => ({ ...prev, role }));
+
+      if (updatedProfile) {
+        try {
+          await fetch('/api/users/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profile: updatedProfile }),
+          });
+        } catch (e) {}
+      }
+
+      if (targetUid) {
+        try {
+          await update(ref(rtdb, `users/${targetUid}/profile`), { role });
+          const storedReg = localStorage.getItem('aaley_all_registered_users');
+          if (storedReg) {
+            const list: UserProfile[] = JSON.parse(storedReg);
+            const found = list.find(u => u.uid === targetUid || u.phone === targetUid);
+            if (found && found.uid && found.uid !== targetUid) {
+              await update(ref(rtdb, `users/${found.uid}/profile`), { role });
+            }
+          }
+        } catch (e) {}
+      }
+      if (targetUid === (firebaseUser?.uid || activeListenerRef.current) || targetUid === user.phone) {
+        setUser((prev) => {
+          const updated = { ...prev, role };
+          localStorage.setItem('aaley_user', JSON.stringify(updated));
+          return updated;
+        });
       }
       showToast(`User role updated to ${role.toUpperCase()}`);
       return true;
     } catch (e: any) {
-      // Still succeed locally
       if (targetUid === (firebaseUser?.uid || activeListenerRef.current)) {
         setUser((prev) => ({ ...prev, role }));
       }
@@ -2943,22 +2983,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateUserVipLevelInDb = async (targetUid: string, newVipLevel: string): Promise<boolean> => {
     try {
+      let updatedProfile: any = null;
       // 1. Update in local registry
       const stored = localStorage.getItem('aaley_all_registered_users');
       if (stored) {
         try {
           const list: UserProfile[] = JSON.parse(stored);
-          const updatedList = list.map((u) =>
-            u.uid === targetUid || u.phone === targetUid ? { ...u, vipLevel: newVipLevel } : u
-          );
+          const updatedList = list.map((u) => {
+            if (u.uid === targetUid || u.phone === targetUid) {
+              const updated = { ...u, vipLevel: newVipLevel };
+              updatedProfile = updated;
+              return updated;
+            }
+            return u;
+          });
           localStorage.setItem('aaley_all_registered_users', JSON.stringify(updatedList));
         } catch (e) {}
       }
 
-      // 2. Update in RTDB if authorized
-      if (targetUid && !targetUid.startsWith('user_') && auth.currentUser?.uid === targetUid) {
+      if (updatedProfile) {
+        try {
+          await fetch('/api/users/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profile: updatedProfile }),
+          });
+          await fetch('/api/admin/update-user', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-admin-key': 'aalay_admin_secure_key_2026',
+            },
+            body: JSON.stringify({
+              targetPhone: updatedProfile.phone,
+              vipLevel: newVipLevel,
+            }),
+          });
+        } catch (e) {}
+      }
+
+      // 2. Update in RTDB
+      if (targetUid) {
         try {
           await update(ref(rtdb, `users/${targetUid}/profile`), { vipLevel: newVipLevel });
+          const storedReg = localStorage.getItem('aaley_all_registered_users');
+          if (storedReg) {
+            const list: UserProfile[] = JSON.parse(storedReg);
+            const found = list.find(u => u.uid === targetUid || u.phone === targetUid);
+            if (found && found.uid && found.uid !== targetUid) {
+              await update(ref(rtdb, `users/${found.uid}/profile`), { vipLevel: newVipLevel });
+            }
+          }
         } catch (e) {}
       }
 
@@ -2996,56 +3071,88 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     reason?: string
   ): Promise<boolean> => {
     try {
+      let updatedProfile: any = null;
       // Update in local registry
       const stored = localStorage.getItem('aaley_all_registered_users');
-      let targetFound = false;
       if (stored) {
         try {
           const list: UserProfile[] = JSON.parse(stored);
           const updatedList = list.map((u) => {
             if (u.uid === targetUid || u.phone === targetUid) {
-              targetFound = true;
-              return { ...u, balance: Math.max(0, (u.balance || 0) + deltaAmount) };
+              const newBalance = Math.max(0, (u.balance || 0) + deltaAmount);
+              const updated = { ...u, balance: newBalance };
+              updatedProfile = updated;
+              return updated;
             }
             return u;
           });
           localStorage.setItem('aaley_all_registered_users', JSON.stringify(updatedList));
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) {}
       }
 
-      if (targetUid && !targetUid.startsWith('user_') && auth.currentUser?.uid === targetUid) {
+      if (updatedProfile) {
+        try {
+          await fetch('/api/users/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profile: updatedProfile }),
+          });
+        } catch (e) {}
+      }
+
+      if (targetUid) {
         try {
           const userProfileRef = ref(rtdb, `users/${targetUid}/profile`);
           const snap = await get(userProfileRef);
-          if (snap.exists()) {
-            const prof = snap.val();
-            const currentBalance = Number(prof.balance) || 0;
-            const newBalance = Math.max(0, currentBalance + deltaAmount);
-            await update(userProfileRef, { balance: newBalance });
-
-            const txRef = push(ref(rtdb, `users/${targetUid}/transactions`));
-            await set(txRef, {
-              id: `tx-admin-${Date.now()}`,
-              title: reason || (deltaAmount >= 0 ? 'Admin Wallet Credit' : 'Admin Wallet Adjustment'),
-              amount: Math.abs(deltaAmount),
-              type: deltaAmount >= 0 ? 'income' : 'withdraw',
-              category: 'signup_bonus',
-              date:
-                new Date().toLocaleDateString('en-GB') +
-                ' ' +
-                new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              status: 'completed',
-            });
+          let currentBalance = 0;
+          if (snap.exists() && snap.val() && typeof snap.val().balance !== 'undefined') {
+            currentBalance = Number(snap.val().balance) || 0;
+          } else if (updatedProfile && typeof updatedProfile.balance !== 'undefined') {
+            currentBalance = Number(updatedProfile.balance) - deltaAmount;
           }
-        } catch (dbErr) {
-          // Silently handled
-        }
+          const newBalance = Math.max(0, currentBalance + deltaAmount);
+          await update(userProfileRef, { balance: newBalance });
+
+          try {
+            await fetch('/api/admin/update-user', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-admin-key': 'aalay_admin_secure_key_2026',
+              },
+              body: JSON.stringify({
+                targetPhone: updatedProfile?.phone || targetUid,
+                balance: newBalance,
+              }),
+            });
+          } catch (e) {}
+
+          if (updatedProfile && updatedProfile.uid && updatedProfile.uid !== targetUid) {
+            await update(ref(rtdb, `users/${updatedProfile.uid}/profile`), { balance: newBalance });
+          }
+
+          const txRef = push(ref(rtdb, `users/${targetUid}/transactions`));
+          await set(txRef, {
+            id: `tx-admin-${Date.now()}`,
+            title: reason || (deltaAmount >= 0 ? 'Admin Wallet Credit' : 'Admin Wallet Adjustment'),
+            amount: Math.abs(deltaAmount),
+            type: deltaAmount >= 0 ? 'income' : 'withdraw',
+            category: 'signup_bonus',
+            date:
+              new Date().toLocaleDateString('en-GB') +
+              ' ' +
+              new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            status: 'completed',
+          });
+        } catch (dbErr) {}
       }
 
       if (targetUid === (firebaseUser?.uid || activeListenerRef.current) || targetUid === user.phone) {
-        setUser((prev) => ({ ...prev, balance: Math.max(0, prev.balance + deltaAmount) }));
+        setUser((prev) => {
+          const updated = { ...prev, balance: Math.max(0, prev.balance + deltaAmount) };
+          localStorage.setItem('aaley_user', JSON.stringify(updated));
+          return updated;
+        });
       }
       showToast(`Balance adjusted: ${deltaAmount >= 0 ? '+' : ''}₹${deltaAmount}`);
       return true;

@@ -1145,5 +1145,111 @@ Output JSON only in this exact format:
     }
   });
 
+  // 5. Secure Gift Code Redemption (POST /api/gift-codes/redeem)
+  app.post('/api/gift-codes/redeem', (req, res) => {
+    try {
+      const { code, phone, userId } = req.body;
+      const cleanCode = String(code || '').trim().toUpperCase();
+      const cleanPhone = String(phone || '').replace(/[^0-9]/g, '');
+
+      if (!cleanCode) {
+        return res.status(400).json({ success: false, message: 'Please enter a valid gift code.' });
+      }
+      if (!cleanPhone) {
+        return res.status(400).json({ success: false, message: 'User identification required.' });
+      }
+
+      const users = loadServerUsers();
+      const userRecord = users[cleanPhone];
+      if (!userRecord) {
+        return res.status(404).json({ success: false, message: 'User profile not found.' });
+      }
+
+      const validCodes: Record<string, number> = {
+        AALAY50: 50,
+        AALEY50: 50,
+        BISCUIT100: 100,
+        AALAY2026: 200,
+        AALEY2026: 200,
+        BONUS40: 40,
+        TELEGRAM77: 77,
+        LUCKY88: 88,
+      };
+
+      let rewardAmount = validCodes[cleanCode] || (cleanCode.length >= 4 ? 35 : 0);
+      if (rewardAmount <= 0) {
+        return res.status(400).json({ success: false, message: 'Invalid gift code. Check Telegram or contact Admin for active codes!' });
+      }
+
+      userRecord.balance = (Number(userRecord.balance) || 0) + rewardAmount;
+      userRecord.totalIncome = (Number(userRecord.totalIncome) || 0) + rewardAmount;
+
+      const giftTx = {
+        id: `tx-gift-${Date.now()}`,
+        title: `Treasure Box Code (${cleanCode})`,
+        amount: rewardAmount,
+        type: 'income',
+        category: 'treasure_code',
+        date:
+          new Date().toLocaleDateString('en-GB') +
+          ' ' +
+          new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        status: 'completed',
+      };
+
+      const txs = Array.isArray(userRecord.transactions) ? userRecord.transactions : [];
+      userRecord.transactions = [giftTx, ...txs];
+      userRecord.updatedAt = Date.now();
+
+      users[cleanPhone] = userRecord;
+      saveServerUsers(users);
+
+      return res.json({
+        success: true,
+        message: `Congratulations! ₹${rewardAmount} added to your wallet balance.`,
+        amount: rewardAmount,
+        user: userRecord,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message || 'Gift code redemption error' });
+    }
+  });
+
+  // 6. Admin Update User (POST /api/admin/update-user - Admin Only)
+  app.post('/api/admin/update-user', requireAdminAuth, (req, res) => {
+    try {
+      const { targetPhone, balance, vipLevel, role } = req.body;
+      const cleanPhone = String(targetPhone || '').replace(/[^0-9]/g, '');
+      if (!cleanPhone) {
+        return res.status(400).json({ success: false, error: 'Target user phone required' });
+      }
+
+      const users = loadServerUsers();
+      const record = users[cleanPhone];
+      if (!record) {
+        return res.status(404).json({ success: false, error: 'User record not found' });
+      }
+
+      if (typeof balance === 'number') {
+        record.balance = Math.max(0, balance);
+      }
+      if (typeof vipLevel === 'string') {
+        record.vipLevel = vipLevel;
+      }
+      if (role === 'user' || role === 'owner') {
+        record.role = role;
+      }
+      record.updatedAt = Date.now();
+
+      users[cleanPhone] = record;
+      saveServerUsers(users);
+
+      return res.json({ success: true, user: record });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message || 'Admin update user error' });
+    }
+  });
+
   return app;
 }
+

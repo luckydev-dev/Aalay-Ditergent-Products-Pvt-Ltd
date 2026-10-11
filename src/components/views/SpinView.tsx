@@ -150,9 +150,9 @@ export const SpinView: React.FC = () => {
     runStep();
   };
 
-  const handleRedeemGift = (e: React.FormEvent) => {
+  const handleRedeemGift = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = redeemGiftCode(giftInput);
+    const res = await redeemGiftCode(giftInput);
     if (res.success) {
       setGiftInput('');
     } else {
