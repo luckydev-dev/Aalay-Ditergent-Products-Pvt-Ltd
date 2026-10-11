@@ -414,11 +414,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearTimeout(timer);
   }, []);
 
+  const syncGiftCodesToServer = async (codes: GiftCode[]) => {
+    try {
+      await fetch('/api/admin/gift-codes/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': 'aalay_admin_secure_key_2026',
+        },
+        body: JSON.stringify({ giftCodes: codes }),
+      });
+    } catch (e) {
+      console.warn('Failed to sync gift codes to server:', e);
+    }
+  };
+
   useEffect(() => {
     try {
       localStorage.setItem('aaley_gift_codes', JSON.stringify(giftCodes));
     } catch (e) {}
   }, [giftCodes]);
+
+  useEffect(() => {
+    fetch('/api/gift-codes/list')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.giftCodes) && data.giftCodes.length > 0) {
+          setGiftCodes(data.giftCodes);
+        }
+      })
+      .catch(e => console.warn('Failed to fetch server gift codes:', e));
+  }, []);
 
 
   const [orders, setOrders] = useState<PurchasedOrder[]>(() => {
@@ -2410,25 +2436,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // "Jab tak recharge balance 0 nahi hota tab tak invest ke liye wahi use hoga.
     //  If kam pad raha then it will use both, and if recharge is 0 then use income"
     setUser((prev) => {
+      const currentBalance = Math.max(0, Number(prev.balance) || 0);
       const currentRecharge = Math.max(0, Number(prev.totalRecharge) || 0);
       const currentIncome = Math.max(0, Number(prev.totalIncome) || 0);
 
-      let deductRecharge = 0;
-      let deductIncome = 0;
+      const newBalance = Math.max(0, currentBalance - plan.price);
 
-      if (currentRecharge >= plan.price) {
-        // Sufficient recharge balance: use strictly recharge
-        deductRecharge = plan.price;
-        deductIncome = 0;
-      } else {
-        // Recharge balance is not enough (or 0): use all available recharge, then remaining from income
-        deductRecharge = currentRecharge;
-        deductIncome = plan.price - currentRecharge;
+      let deductRecharge = Math.min(currentRecharge, plan.price);
+      let remainingAfterRecharge = plan.price - deductRecharge;
+      let deductIncome = Math.min(currentIncome, remainingAfterRecharge);
+
+      let newRecharge = Math.max(0, currentRecharge - deductRecharge);
+      let newIncome = Math.max(0, currentIncome - deductIncome);
+
+      if (newRecharge + newIncome !== newBalance) {
+        newIncome = Math.max(0, newBalance - newRecharge);
       }
-
-      const newRecharge = Math.max(0, currentRecharge - deductRecharge);
-      const newIncome = Math.max(0, currentIncome - deductIncome);
-      const newBalance = newRecharge + newIncome;
 
       const updated = {
         ...prev,
@@ -2440,7 +2463,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (updated.phone) {
         saveUserToRegistry(updated);
       }
-
       return updated;
     });
 

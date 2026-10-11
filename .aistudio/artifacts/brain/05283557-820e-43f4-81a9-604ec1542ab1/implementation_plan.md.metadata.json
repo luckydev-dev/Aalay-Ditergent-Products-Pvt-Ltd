@@ -1,6 +1,6 @@
 {
-  "summary":  "Comprehensive implementation plan for permanent account deletion in the Admin Dashboard, enabling complete removal of user profiles, transactions, and database nodes with instant re-registration capability.",
-  "updatedAt":  "2026-10-11T01:52:27.741561990Z",
+  "summary":  "Plan to fix plan purchase balance deduction bug where leftover wallet balance was incorrectly wiped to zero.",
+  "updatedAt":  "2026-10-11T07:01:57.236432443Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

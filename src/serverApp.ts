@@ -862,6 +862,38 @@ Output JSON only in this exact format:
     }
   };
 
+  const GIFT_CODES_FILE = path.join(process.cwd(), 'gift-codes.json');
+
+  const loadServerGiftCodes = (): any[] => {
+    try {
+      if (fs.existsSync(GIFT_CODES_FILE)) {
+        const raw = fs.readFileSync(GIFT_CODES_FILE, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('[ServerGiftCodes] Read error:', e);
+    }
+    return [
+      { id: 'gc-1', code: 'AALAY50', rewardAmount: 50, maxUses: 1000, timesClaimed: 0, active: true, claimedBy: [] },
+      { id: 'gc-2', code: 'AALEY50', rewardAmount: 50, maxUses: 1000, timesClaimed: 0, active: true, claimedBy: [] },
+      { id: 'gc-3', code: 'BISCUIT100', rewardAmount: 100, maxUses: 1000, timesClaimed: 0, active: true, claimedBy: [] },
+      { id: 'gc-4', code: 'AALAY2026', rewardAmount: 200, maxUses: 1000, timesClaimed: 0, active: true, claimedBy: [] },
+      { id: 'gc-5', code: 'AALEY2026', rewardAmount: 200, maxUses: 1000, timesClaimed: 0, active: true, claimedBy: [] },
+      { id: 'gc-6', code: 'BONUS40', rewardAmount: 40, maxUses: 1000, timesClaimed: 0, active: true, claimedBy: [] },
+      { id: 'gc-7', code: 'TELEGRAM77', rewardAmount: 77, maxUses: 1000, timesClaimed: 0, active: true, claimedBy: [] },
+      { id: 'gc-8', code: 'LUCKY88', rewardAmount: 88, maxUses: 1000, timesClaimed: 0, active: true, claimedBy: [] },
+    ];
+  };
+
+  const saveServerGiftCodes = (codes: any[]) => {
+    try {
+      fs.writeFileSync(GIFT_CODES_FILE, JSON.stringify(codes, null, 2), 'utf-8');
+    } catch (e) {
+      console.warn('[ServerGiftCodes] Write error:', e);
+    }
+  };
+
   // 1. Sync User Profile to Server (POST /api/users/sync)
   app.post('/api/users/sync', (req, res) => {
     try {
@@ -1145,7 +1177,29 @@ Output JSON only in this exact format:
     }
   });
 
-  // 5. Secure Gift Code Redemption (POST /api/gift-codes/redeem)
+  // 5. Gift Codes Endpoints & Redemption
+  app.get('/api/gift-codes/list', (req, res) => {
+    try {
+      const codes = loadServerGiftCodes();
+      return res.json({ success: true, giftCodes: codes });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message || 'Failed to list gift codes' });
+    }
+  });
+
+  app.post('/api/admin/gift-codes/save', requireAdminAuth, (req, res) => {
+    try {
+      const { giftCodes } = req.body;
+      if (!Array.isArray(giftCodes)) {
+        return res.status(400).json({ success: false, error: 'giftCodes array required' });
+      }
+      saveServerGiftCodes(giftCodes);
+      return res.json({ success: true, message: 'Gift codes saved successfully', giftCodes });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message || 'Failed to save gift codes' });
+    }
+  });
+
   app.post('/api/gift-codes/redeem', (req, res) => {
     try {
       const { code, phone, userId } = req.body;
@@ -1165,18 +1219,44 @@ Output JSON only in this exact format:
         return res.status(404).json({ success: false, message: 'User profile not found.' });
       }
 
-      const validCodes: Record<string, number> = {
-        AALAY50: 50,
-        AALEY50: 50,
-        BISCUIT100: 100,
-        AALAY2026: 200,
-        AALEY2026: 200,
-        BONUS40: 40,
-        TELEGRAM77: 77,
-        LUCKY88: 88,
-      };
+      const giftCodesList = loadServerGiftCodes();
+      let matchedCodeObj = giftCodesList.find((gc: any) => String(gc.code || '').trim().toUpperCase() === cleanCode);
+      let rewardAmount = 0;
 
-      let rewardAmount = validCodes[cleanCode] || (cleanCode.length >= 4 ? 35 : 0);
+      if (matchedCodeObj) {
+        if (matchedCodeObj.active === false) {
+          return res.status(400).json({ success: false, message: 'This gift code is inactive or expired.' });
+        }
+        if (matchedCodeObj.maxUses && Number(matchedCodeObj.timesClaimed || 0) >= Number(matchedCodeObj.maxUses)) {
+          return res.status(400).json({ success: false, message: 'This gift code has reached its maximum claim limit!' });
+        }
+        const claimedByArr = Array.isArray(matchedCodeObj.claimedBy) ? matchedCodeObj.claimedBy : [];
+        if (claimedByArr.includes(cleanPhone)) {
+          return res.status(400).json({ success: false, message: 'You have already redeemed this gift code!' });
+        }
+
+        rewardAmount = Number(matchedCodeObj.rewardAmount) || 50;
+
+        matchedCodeObj.timesClaimed = Number(matchedCodeObj.timesClaimed || 0) + 1;
+        if (!claimedByArr.includes(cleanPhone)) {
+          claimedByArr.push(cleanPhone);
+        }
+        matchedCodeObj.claimedBy = claimedByArr;
+        saveServerGiftCodes(giftCodesList);
+      } else {
+        const validCodes: Record<string, number> = {
+          AALAY50: 50,
+          AALEY50: 50,
+          BISCUIT100: 100,
+          AALAY2026: 200,
+          AALEY2026: 200,
+          BONUS40: 40,
+          TELEGRAM77: 77,
+          LUCKY88: 88,
+        };
+        rewardAmount = validCodes[cleanCode] || (cleanCode.length >= 4 ? 35 : 0);
+      }
+
       if (rewardAmount <= 0) {
         return res.status(400).json({ success: false, message: 'Invalid gift code. Check Telegram or contact Admin for active codes!' });
       }
@@ -1200,7 +1280,6 @@ Output JSON only in this exact format:
       const txs = Array.isArray(userRecord.transactions) ? userRecord.transactions : [];
       userRecord.transactions = [giftTx, ...txs];
       userRecord.updatedAt = Date.now();
-
       users[cleanPhone] = userRecord;
       saveServerUsers(users);
 
