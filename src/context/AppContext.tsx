@@ -504,15 +504,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Safe RTDB write helper for current user
   const syncToRtdb = (path: string, data: any) => {
-    const uid = firebaseUser?.uid || (user.phone ? `user_${user.phone}` : null);
-    if (!uid) return;
+    // Only sync to RTDB when authenticated with a real Firebase Auth user
+    if (!firebaseUser || !firebaseUser.uid) {
+      return;
+    }
+    const uid = firebaseUser.uid;
     try {
       const dataRef = ref(rtdb, `users/${uid}/${path}`);
-      set(dataRef, data).catch((err) => {
-        console.warn(`RTDB sync to users/${uid}/${path} warning:`, err);
+      set(dataRef, data).catch(() => {
+        // Silently catch permission or network warnings
       });
     } catch (e) {
-      console.warn('RTDB sync exception:', e);
+      // Silently catch exception
     }
   };
 
