@@ -593,6 +593,24 @@ export const AdminDashboardView: React.FC = () => {
           });
         });
       }
+      const storedGlobal = localStorage.getItem('aaley_all_withdrawals');
+      if (storedGlobal) {
+        const parsedG: any[] = JSON.parse(storedGlobal);
+        parsedG.forEach((gw) => {
+          localWithdrawals.push({
+            uid: gw.uid || 'user',
+            userName: gw.userName || 'User',
+            userPhone: gw.userPhone || '9510006797',
+            withdrawalId: gw.withdrawalId || gw.id,
+            amount: Number(gw.amount) || 0,
+            bankAccount: gw.bankAccount || '•••• •••• 6797',
+            ifsc: gw.ifsc || 'SBIN0001234',
+            date: gw.date || new Date().toLocaleDateString('en-GB'),
+            status: gw.status || 'pending',
+            referenceId: gw.referenceId || `REF-${gw.withdrawalId}`,
+          });
+        });
+      }
     } catch (e) {
       console.warn('Local withdrawals read warning:', e);
     }
@@ -601,11 +619,12 @@ export const AdminDashboardView: React.FC = () => {
     try {
       const usersRef = ref(rtdb, 'users');
       get(usersRef)
-        .then((snapshot) => {
+        .then(async (snapshot) => {
+          const remoteUsers: SystemUserItem[] = [];
+          const remoteWithdrawals: SystemWithdrawalItem[] = [];
+
           if (snapshot.exists()) {
             const val = snapshot.val();
-            const remoteUsers: SystemUserItem[] = [];
-            const remoteWithdrawals: SystemWithdrawalItem[] = [];
 
             Object.keys(val).forEach((uid) => {
               const uData = val[uid];
@@ -648,25 +667,45 @@ export const AdminDashboardView: React.FC = () => {
                 });
               }
             });
-
-            // Merge unique users (remote takes precedence, supplemented by local)
-            const mergedUsersMap = new Map<string, SystemUserItem>();
-            localUsers.forEach((u) => mergedUsersMap.set(u.phone, u));
-            remoteUsers.forEach((u) => mergedUsersMap.set(u.phone, u));
-
-            const mergedWithdrawalsMap = new Map<string, SystemWithdrawalItem>();
-            localWithdrawals.forEach((w) => mergedWithdrawalsMap.set(w.withdrawalId, w));
-            remoteWithdrawals.forEach((w) => mergedWithdrawalsMap.set(w.withdrawalId, w));
-
-            setUsersList(Array.from(mergedUsersMap.values()));
-            setWithdrawalsList(Array.from(mergedWithdrawalsMap.values()));
-          } else {
-            setUsersList(localUsers);
-            setWithdrawalsList(localWithdrawals);
           }
+
+          // Fetch top level withdrawal_requests node
+          try {
+            const reqSnap = await get(ref(rtdb, 'withdrawal_requests'));
+            if (reqSnap.exists()) {
+              const reqVal = reqSnap.val();
+              Object.values(reqVal).forEach((w: any) => {
+                if (w && (w.withdrawalId || w.id)) {
+                  remoteWithdrawals.push({
+                    uid: w.uid || 'user',
+                    userName: w.userName || 'User',
+                    userPhone: w.userPhone || '9510006797',
+                    withdrawalId: w.withdrawalId || w.id,
+                    amount: Number(w.amount) || 0,
+                    bankAccount: w.bankAccount || '•••• •••• 6797',
+                    ifsc: w.ifsc || 'SBIN0001234',
+                    date: w.date || new Date().toLocaleDateString('en-GB'),
+                    status: w.status || 'pending',
+                    referenceId: w.referenceId || `REF-${w.withdrawalId}`,
+                  });
+                }
+              });
+            }
+          } catch (e) {}
+
+          // Merge unique users and withdrawals
+          const mergedUsersMap = new Map<string, SystemUserItem>();
+          localUsers.forEach((u) => mergedUsersMap.set(u.phone, u));
+          remoteUsers.forEach((u) => mergedUsersMap.set(u.phone, u));
+
+          const mergedWithdrawalsMap = new Map<string, SystemWithdrawalItem>();
+          localWithdrawals.forEach((w) => mergedWithdrawalsMap.set(w.withdrawalId, w));
+          remoteWithdrawals.forEach((w) => mergedWithdrawalsMap.set(w.withdrawalId, w));
+
+          setUsersList(Array.from(mergedUsersMap.values()));
+          setWithdrawalsList(Array.from(mergedWithdrawalsMap.values()));
         })
         .catch(() => {
-          // If remote is protected or unreachable, rely completely on local store
           setUsersList(localUsers);
           setWithdrawalsList(localWithdrawals);
         })
@@ -2450,7 +2489,7 @@ export const AdminDashboardView: React.FC = () => {
                         </div>
                       </div>
 
-                      {w.status === 'pending' ? (
+                      {w.status === 'pending' || w.status === 'processing' ? (
                         <div className="flex gap-2 pt-1">
                           <button
                             onClick={() => handleRejectWithdrawal(w)}
@@ -2540,7 +2579,7 @@ export const AdminDashboardView: React.FC = () => {
                           </td>
 
                           <td className="py-3 px-3 text-right">
-                            {w.status === 'pending' ? (
+                            {w.status === 'pending' || w.status === 'processing' ? (
                               <div className="flex items-center justify-end gap-1.5">
                                 <button
                                   onClick={() => handleApproveWithdrawal(w)}

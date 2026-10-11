@@ -567,6 +567,50 @@ export function createExpressApp() {
     }
   });
 
+  // Notify Admins on New User Withdrawal Request
+  app.post('/api/notify-admin-withdrawal', async (req, res) => {
+    try {
+      const { withdrawalId, amount, userName, userPhone, bankAccount, ifsc } = req.body;
+      const title = '🚨 New Withdrawal Request';
+      const message = `User ${userName || userPhone || 'Member'} requested a withdrawal of ₹${amount}. Bank: ${bankAccount || 'Account'} (${ifsc || 'IFSC'}). Click to approve in Admin Dashboard.`;
+
+      let pushResult: any = null;
+      if (!onesignalAppId || !onesignalRestApiKey) {
+        await syncConfigFromFirebaseRTDB();
+      }
+
+      if (onesignalAppId && onesignalRestApiKey) {
+        try {
+          const pushResponse = await fetch('https://onesignal.com/api/v1/notifications', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'Authorization': `Basic ${onesignalRestApiKey}`,
+            },
+            body: JSON.stringify({
+              app_id: onesignalAppId,
+              headings: { en: title },
+              contents: { en: message },
+              included_segments: ['Subscribed Users'],
+            }),
+          });
+          pushResult = await pushResponse.json();
+        } catch (pushErr: any) {
+          console.error('[Admin Withdrawal Push Error]', pushErr);
+        }
+      }
+
+      return res.json({
+        status: true,
+        message: 'Admin withdrawal notification processed.',
+        pushResult,
+      });
+    } catch (err: any) {
+      console.error('[Notify Admin Withdrawal Error]', err);
+      return res.status(500).json({ status: false, error: err.message || 'Error processing notification' });
+    }
+  });
+
   // UPI Recharge Verification Endpoint
   const processedUtrs = new Set<string>();
 

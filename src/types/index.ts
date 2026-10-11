@@ -106,7 +106,7 @@ export interface TransactionRecord {
   type: 'income' | 'withdraw';
   category: 'signup_bonus' | 'recharge' | 'spin_win' | 'plan_income' | 'commission' | 'treasure_code' | 'withdrawal';
   date: string;
-  status: 'completed' | 'processing' | 'rejected';
+  status: 'completed' | 'processing' | 'pending' | 'rejected';
 }
 
 export interface WithdrawalRecord {

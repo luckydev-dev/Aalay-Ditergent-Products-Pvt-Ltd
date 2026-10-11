@@ -1659,16 +1659,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
 
     const refId = `AALAY${Math.floor(10000000 + Math.random() * 90000000)}`;
+    const withdrawalId = `w-${Date.now()}`;
+    const dateStr =
+      new Date().toLocaleDateString('en-GB') +
+      ' ' +
+      new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
     const newWithdrawal: WithdrawalRecord = {
-      id: `w-${Date.now()}`,
+      id: withdrawalId,
       amount: amount,
       bankAccount: bankDetails.accountNumber,
       ifsc: bankDetails.ifscCode,
-      date:
-        new Date().toLocaleDateString('en-GB') +
-        ' ' +
-        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'processing',
+      date: dateStr,
+      status: 'pending',
       referenceId: refId,
     };
 
@@ -1678,28 +1681,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       amount: amount,
       type: 'withdraw',
       category: 'withdrawal',
-      date:
-        new Date().toLocaleDateString('en-GB') +
-        ' ' +
-        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'processing',
+      date: dateStr,
+      status: 'pending',
     };
 
     setWithdrawals((prev) => [newWithdrawal, ...prev]);
     setTransactions((prev) => [newTx, ...prev]);
 
-    // Simulate auto-completion after 12 seconds for realistic app feel
-    setTimeout(() => {
-      setWithdrawals((prev) =>
-        prev.map((w) => (w.id === newWithdrawal.id ? { ...w, status: 'completed' } : w))
-      );
-      setTransactions((prev) =>
-        prev.map((t) => (t.id === newTx.id ? { ...t, status: 'completed' } : t))
-      );
-      showToast(`Payout of ₹${amount} completed to bank!`);
-    }, 12000);
+    // Save to user local storage
+    try {
+      const stored = JSON.parse(localStorage.getItem('aaley_withdrawals') || '[]');
+      localStorage.setItem('aaley_withdrawals', JSON.stringify([newWithdrawal, ...stored]));
+    } catch (e) {}
 
-    return { success: true, message: 'Withdrawal submitted! Payout will reflect within 10-30 minutes.' };
+    // Save to global withdrawals list for admin
+    const adminItem = {
+      uid: user.uid || `user_${user.phone}`,
+      userName: user.name || 'User',
+      userPhone: user.phone || '9510006797',
+      withdrawalId: withdrawalId,
+      amount: amount,
+      bankAccount: bankDetails.accountNumber,
+      ifsc: bankDetails.ifscCode,
+      date: dateStr,
+      status: 'pending',
+      referenceId: refId,
+    };
+
+    try {
+      const storedGlobal = JSON.parse(localStorage.getItem('aaley_all_withdrawals') || '[]');
+      localStorage.setItem('aaley_all_withdrawals', JSON.stringify([adminItem, ...storedGlobal.filter((w: any) => w.withdrawalId !== withdrawalId)]));
+    } catch (e) {}
+
+    // Sync to Firebase RTDB under user node and top level withdrawal_requests
+    try {
+      const uid = user.uid || `user_${user.phone}`;
+      set(ref(rtdb, `users/${uid}/withdrawals/${withdrawalId}`), newWithdrawal).catch(() => {});
+      set(ref(rtdb, `withdrawal_requests/${withdrawalId}`), adminItem).catch(() => {});
+    } catch (e) {}
+
+    // Send push notification to admins
+    try {
+      fetch('/api/notify-admin-withdrawal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          withdrawalId,
+          amount,
+          userName: user.name,
+          userPhone: user.phone,
+          bankAccount: bankDetails.accountNumber,
+          ifsc: bankDetails.ifscCode,
+        }),
+      }).catch(() => {});
+    } catch (e) {}
+
+    showToast('Withdrawal request submitted! Pending Admin approval.');
+    return { success: true, message: 'Withdrawal request submitted! Pending Admin approval.' };
   };
 
   const buyPlan = (planId: string): { success: boolean; message: string; purchasedPlan?: ProductPlan } => {
@@ -2336,18 +2374,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const approveWithdrawalInDb = async (targetUid: string, withdrawalId: string): Promise<boolean> => {
     try {
+      // 1. Update in top-level withdrawal_requests node
+      try {
+        await update(ref(rtdb, `withdrawal_requests/${withdrawalId}`), { status: 'completed' });
+      } catch (e) {}
+
+      // 2. Update under user node
       const snap = await get(ref(rtdb, `users/${targetUid}/withdrawals`));
       if (snap.exists()) {
         const val = snap.val();
-        const entries = Array.isArray(val) ? val : Object.values(val);
-        const updated = entries.map((w: any) =>
-          w.id === withdrawalId ? { ...w, status: 'completed' } : w
-        );
+        let updated: any[];
+        if (Array.isArray(val)) {
+          updated = val.map((w: any) => (w && w.id === withdrawalId ? { ...w, status: 'completed' } : w));
+        } else {
+          updated = Object.values(val).map((w: any) => (w && w.id === withdrawalId ? { ...w, status: 'completed' } : w));
+        }
         await set(ref(rtdb, `users/${targetUid}/withdrawals`), updated);
-        showToast('Withdrawal payout marked as COMPLETED!');
-        return true;
       }
-      return false;
+
+      // 3. Update local state if active user
+      if (targetUid === user.uid || targetUid === user.phone || targetUid === (firebaseUser?.uid || activeListenerRef.current)) {
+        setWithdrawals((prev) =>
+          prev.map((w) => (w.id === withdrawalId ? { ...w, status: 'completed' } : w))
+        );
+        setTransactions((prev) =>
+          prev.map((t) => (t.id.includes(withdrawalId) ? { ...t, status: 'completed' } : t))
+        );
+      }
+
+      // 4. Update localStorage
+      try {
+        const stored = JSON.parse(localStorage.getItem('aaley_withdrawals') || '[]');
+        const updatedStored = stored.map((w: any) => (w.id === withdrawalId ? { ...w, status: 'completed' } : w));
+        localStorage.setItem('aaley_withdrawals', JSON.stringify(updatedStored));
+
+        const storedGlobal = JSON.parse(localStorage.getItem('aaley_all_withdrawals') || '[]');
+        const updatedGlobal = storedGlobal.map((w: any) => (w.withdrawalId === withdrawalId ? { ...w, status: 'completed' } : w));
+        localStorage.setItem('aaley_all_withdrawals', JSON.stringify(updatedGlobal));
+      } catch (e) {}
+
+      showToast('Withdrawal payout marked as COMPLETED!');
+      return true;
     } catch (e) {
       showToast('Failed to approve withdrawal');
       return false;
@@ -2356,20 +2423,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const rejectWithdrawalInDb = async (targetUid: string, withdrawalId: string): Promise<boolean> => {
     try {
+      let refundAmount = 0;
+
+      // 1. Update in top-level withdrawal_requests node
+      try {
+        const reqSnap = await get(ref(rtdb, `withdrawal_requests/${withdrawalId}`));
+        if (reqSnap.exists()) {
+          refundAmount = Number(reqSnap.val().amount) || 0;
+          await update(ref(rtdb, `withdrawal_requests/${withdrawalId}`), { status: 'rejected' });
+        }
+      } catch (e) {}
+
+      // 2. Update under user node
       const snap = await get(ref(rtdb, `users/${targetUid}/withdrawals`));
       if (snap.exists()) {
         const val = snap.val();
-        const entries = Array.isArray(val) ? val : Object.values(val);
-        let refundAmount = 0;
+        let entries = Array.isArray(val) ? val : Object.values(val);
         const updated = entries.map((w: any) => {
-          if (w.id === withdrawalId) {
-            refundAmount = w.amount || 0;
+          if (w && w.id === withdrawalId) {
+            if (!refundAmount) refundAmount = Number(w.amount) || 0;
             return { ...w, status: 'rejected' };
           }
           return w;
         });
         await set(ref(rtdb, `users/${targetUid}/withdrawals`), updated);
-        if (refundAmount > 0) {
+      }
+
+      // 3. Refund amount to user balance in RTDB & local storage & state
+      if (refundAmount > 0) {
+        // Profile RTDB
+        try {
           const profSnap = await get(ref(rtdb, `users/${targetUid}/profile`));
           if (profSnap.exists()) {
             const currentBal = Number(profSnap.val().balance) || 0;
@@ -2377,11 +2460,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               balance: currentBal + refundAmount,
             });
           }
+        } catch (e) {}
+
+        // Active user state
+        if (targetUid === user.uid || targetUid === user.phone || targetUid === (firebaseUser?.uid || activeListenerRef.current)) {
+          setUser((prev) => ({
+            ...prev,
+            balance: prev.balance + refundAmount,
+          }));
+          setWithdrawals((prev) =>
+            prev.map((w) => (w.id === withdrawalId ? { ...w, status: 'rejected' } : w))
+          );
+          setTransactions((prev) =>
+            prev.map((t) => (t.id.includes(withdrawalId) ? { ...t, status: 'rejected' } : t))
+          );
         }
-        showToast('Withdrawal REJECTED & amount refunded to user account');
-        return true;
+
+        // Registry localStorage
+        try {
+          const storedUsers = localStorage.getItem('aaley_all_registered_users');
+          if (storedUsers) {
+            const list: UserProfile[] = JSON.parse(storedUsers);
+            const updatedList = list.map((u) =>
+              u.uid === targetUid || u.phone === targetUid ? { ...u, balance: (u.balance || 0) + refundAmount } : u
+            );
+            localStorage.setItem('aaley_all_registered_users', JSON.stringify(updatedList));
+          }
+        } catch (e) {}
       }
-      return false;
+
+      // Local storage updates for withdrawals
+      try {
+        const stored = JSON.parse(localStorage.getItem('aaley_withdrawals') || '[]');
+        const updatedStored = stored.map((w: any) => (w.id === withdrawalId ? { ...w, status: 'rejected' } : w));
+        localStorage.setItem('aaley_withdrawals', JSON.stringify(updatedStored));
+
+        const storedGlobal = JSON.parse(localStorage.getItem('aaley_all_withdrawals') || '[]');
+        const updatedGlobal = storedGlobal.map((w: any) => (w.withdrawalId === withdrawalId ? { ...w, status: 'rejected' } : w));
+        localStorage.setItem('aaley_all_withdrawals', JSON.stringify(updatedGlobal));
+      } catch (e) {}
+
+      showToast('Withdrawal REJECTED & amount refunded to user account');
+      return true;
     } catch (e) {
       showToast('Failed to reject withdrawal');
       return false;
