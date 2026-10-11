@@ -29,6 +29,7 @@ export const ProfileView: React.FC = () => {
   const { user, logout, setSubScreen, setActiveTab, showToast, transactions } = useApp();
   const [copiedId, setCopiedId] = React.useState(false);
   const [copiedCode, setCopiedCode] = React.useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
 
   const { displayTotalRecharge, displayTotalIncome } = calculateWalletMetrics(
     user.balance,
@@ -488,8 +489,9 @@ export const ProfileView: React.FC = () => {
 
           {/* 6. Logout */}
           <button
-            onClick={logout}
-            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-rose-50 active:bg-rose-100 transition-colors rounded-2xl text-rose-600"
+            type="button"
+            onClick={() => setShowLogoutConfirm(true)}
+            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-rose-50 active:bg-rose-100 transition-colors rounded-2xl text-rose-600 cursor-pointer"
           >
             <div className="flex items-center gap-3.5">
               <div className="w-10 h-10 rounded-2xl bg-rose-100/80 text-rose-600 flex items-center justify-center shrink-0">
@@ -508,6 +510,50 @@ export const ProfileView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div
+            className="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="logout-title"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4 ring-8 ring-rose-50/60 shadow-inner">
+              <LogOut size={26} className="translate-x-0.5" />
+            </div>
+
+            <h3 id="logout-title" className="text-lg font-black text-slate-900 tracking-tight mb-2">
+              Confirm Logout
+            </h3>
+            
+            <p className="text-xs text-slate-500 leading-relaxed mb-6 font-medium">
+              Are you sure you want to sign out? This will end your active session and reset local application cache on this device.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="w-full py-3 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 text-xs font-black transition-all cursor-pointer shadow-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLogoutConfirm(false);
+                  logout();
+                }}
+                className="w-full py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-black transition-all shadow-md shadow-rose-600/20 cursor-pointer"
+              >
+                Yes, Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
