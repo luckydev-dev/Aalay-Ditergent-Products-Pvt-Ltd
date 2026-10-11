@@ -288,7 +288,7 @@ export const SpinView: React.FC = () => {
             </p>
             <p className="text-xs text-slate-500 mb-5">
               {winModalData.amount > 0
-                ? 'Your winnings have been credited to your available balance.'
+                ? 'Your winnings have been credited to your Total Income & Available Balance.'
                 : 'Try again tomorrow with your next daily spin.'}
             </p>
             <button

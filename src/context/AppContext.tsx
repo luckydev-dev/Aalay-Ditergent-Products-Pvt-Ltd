@@ -300,11 +300,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (parsed && parsed.isLoggedIn && parsed.phone) {
           const sanitizedName = sanitizeUserName(parsed.name, parsed.phone);
           const inviteCode = parsed.invitationCode || String(Math.floor(100000 + Math.random() * 900000));
+          const cleanRecharge = parsed.totalRecharge === 50000 ? 0 : (Number(parsed.totalRecharge) || 0);
+          const cleanIncome = parsed.totalIncome === 50005 ? 505 : (parsed.totalIncome === 50000 ? 500 : (Number(parsed.totalIncome) || 0));
           return {
             ...DEFAULT_USER,
             ...parsed,
             name: sanitizedName,
             invitationCode: inviteCode,
+            totalRecharge: cleanRecharge,
+            totalIncome: cleanIncome,
             avatar: 'https://i.ibb.co/JWBdHWpv/profile-picture.png',
           };
         }
@@ -315,7 +319,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return DEFAULT_USER;
   });
 
-  // Purge any corrupted Lucky names and ensure valid invitation codes in registry
+  // Purge any corrupted Lucky names and ensure valid invitation codes & accurate recharge metrics in registry
   useEffect(() => {
     try {
       const stored = localStorage.getItem('aaley_all_registered_users');
@@ -329,9 +333,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .map((u) => {
             const cleanName = sanitizeUserName(u.name, u.phone);
             const inviteCode = u.invitationCode || String(Math.floor(100000 + Math.random() * 900000));
-            if (u.name !== cleanName || !u.invitationCode) {
+            const cleanRecharge = u.totalRecharge === 50000 ? 0 : (Number(u.totalRecharge) || 0);
+            const cleanIncome = u.totalIncome === 50005 ? 505 : (u.totalIncome === 50000 ? 500 : (Number(u.totalIncome) || 0));
+            if (u.name !== cleanName || !u.invitationCode || u.totalRecharge !== cleanRecharge || u.totalIncome !== cleanIncome) {
               updated = true;
-              return { ...u, name: cleanName, invitationCode: inviteCode };
+              return { ...u, name: cleanName, invitationCode: inviteCode, totalRecharge: cleanRecharge, totalIncome: cleanIncome };
             }
             return u;
           });
@@ -339,13 +345,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.setItem('aaley_all_registered_users', JSON.stringify(filtered));
         }
       }
-      // Also ensure current active user has clean name
+      // Also ensure current active user has clean name and recharge = 0 if un-recharged
       setUser((prev) => {
         if (!prev.phone) return prev;
         const cleanName = sanitizeUserName(prev.name, prev.phone);
         const cleanCode = prev.invitationCode || String(Math.floor(100000 + Math.random() * 900000));
-        if (prev.name !== cleanName || !prev.invitationCode) {
-          return { ...prev, name: cleanName, invitationCode: cleanCode };
+        const cleanRecharge = prev.totalRecharge === 50000 ? 0 : prev.totalRecharge;
+        const cleanIncome = prev.totalIncome === 50005 ? 505 : (prev.totalIncome === 50000 ? 500 : prev.totalIncome);
+        if (prev.name !== cleanName || !prev.invitationCode || prev.totalRecharge !== cleanRecharge || prev.totalIncome !== cleanIncome) {
+          return { ...prev, name: cleanName, invitationCode: cleanCode, totalRecharge: cleanRecharge, totalIncome: cleanIncome };
         }
         return prev;
       });
@@ -1254,13 +1262,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? serverUserData.balance
         : typeof existingProfile?.balance === 'number'
         ? existingProfile.balance
-        : (isOwnerAccount ? 50000 : 40);
+        : (isOwnerAccount ? 505 : 40);
 
       const resolvedTotalIncome = typeof serverUserData?.totalIncome === 'number'
         ? serverUserData.totalIncome
         : typeof existingProfile?.totalIncome === 'number'
-        ? existingProfile.totalIncome
-        : (isOwnerAccount ? 50000 : 40);
+        ? (existingProfile.totalIncome === 50005 ? 505 : (existingProfile.totalIncome === 50000 ? 500 : existingProfile.totalIncome))
+        : (isOwnerAccount ? 505 : 40);
 
       const resolvedTeamCount = typeof serverUserData?.teamMembersCount === 'number'
         ? serverUserData.teamMembersCount
@@ -1286,9 +1294,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         uid: uid,
         balance: resolvedBalance,
         totalIncome: resolvedTotalIncome,
-        totalRecharge: typeof existingProfile?.totalRecharge === 'number' 
+        totalRecharge: typeof existingProfile?.totalRecharge === 'number' && existingProfile.totalRecharge !== 50000
           ? existingProfile.totalRecharge 
-          : (isOwnerAccount ? 50000 : 0),
+          : 0,
         vipLevel: existingProfile?.vipLevel || (isOwnerAccount ? 'VIP5' : 'VIP1'),
         spinsLeft: typeof existingProfile?.spinsLeft === 'number' ? existingProfile.spinsLeft : 1,
         invitationCode: existingProfile?.invitationCode || serverUserData?.invitationCode || String(Math.floor(100000 + Math.random() * 900000)),
@@ -2161,11 +2169,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Insufficient wallet balance.' };
     }
 
-    // Deduct balance
-    setUser((prev) => ({
-      ...prev,
-      balance: prev.balance - amount,
-    }));
+    // Deduct balance and sub-wallets
+    setUser((prev) => {
+      const currentIncome = Math.max(0, Number(prev.totalIncome) || 0);
+      const currentRecharge = Math.max(0, Number(prev.totalRecharge) || 0);
+
+      let deductIncome = 0;
+      let deductRecharge = 0;
+      if (currentIncome >= amount) {
+        deductIncome = amount;
+      } else {
+        deductIncome = currentIncome;
+        deductRecharge = amount - currentIncome;
+      }
+
+      const newIncome = Math.max(0, currentIncome - deductIncome);
+      const newRecharge = Math.max(0, currentRecharge - deductRecharge);
+      const newBalance = newRecharge + newIncome;
+
+      const updated = {
+        ...prev,
+        balance: newBalance,
+        totalIncome: newIncome,
+        totalRecharge: newRecharge,
+      };
+
+      if (updated.phone) {
+        saveUserToRegistry(updated);
+      }
+
+      return updated;
+    });
 
     const refId = `AALAY${Math.floor(10000000 + Math.random() * 90000000)}`;
     const withdrawalId = `w-${Date.now()}`;
@@ -2284,11 +2318,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    // Deduct balance and create order
-    setUser((prev) => ({
-      ...prev,
-      balance: prev.balance - plan.price,
-    }));
+    // Deduct balance and sub-wallets according to user's strict investment priority rule:
+    // "Jab tak recharge balance 0 nahi hota tab tak invest ke liye wahi use hoga.
+    //  If kam pad raha then it will use both, and if recharge is 0 then use income"
+    setUser((prev) => {
+      const currentRecharge = Math.max(0, Number(prev.totalRecharge) || 0);
+      const currentIncome = Math.max(0, Number(prev.totalIncome) || 0);
+
+      let deductRecharge = 0;
+      let deductIncome = 0;
+
+      if (currentRecharge >= plan.price) {
+        // Sufficient recharge balance: use strictly recharge
+        deductRecharge = plan.price;
+        deductIncome = 0;
+      } else {
+        // Recharge balance is not enough (or 0): use all available recharge, then remaining from income
+        deductRecharge = currentRecharge;
+        deductIncome = plan.price - currentRecharge;
+      }
+
+      const newRecharge = Math.max(0, currentRecharge - deductRecharge);
+      const newIncome = Math.max(0, currentIncome - deductIncome);
+      const newBalance = newRecharge + newIncome;
+
+      const updated = {
+        ...prev,
+        balance: newBalance,
+        totalRecharge: newRecharge,
+        totalIncome: newIncome,
+      };
+
+      if (updated.phone) {
+        saveUserToRegistry(updated);
+      }
+
+      return updated;
+    });
 
     const serverNow = Date.now();
     const newOrder: PurchasedOrder = {
@@ -2406,12 +2472,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const spinLuckyDraw = (wonAmount: number) => {
-    setUser((prev) => ({
-      ...prev,
-      balance: prev.balance + wonAmount,
-      totalIncome: prev.totalIncome + wonAmount,
-      spinsLeft: Math.max(0, prev.spinsLeft - 1),
-    }));
+    setUser((prev) => {
+      const updated = {
+        ...prev,
+        balance: prev.balance + wonAmount,
+        totalIncome: prev.totalIncome + wonAmount,
+        spinsLeft: Math.max(0, prev.spinsLeft - 1),
+      };
+      if (updated.phone) {
+        saveUserToRegistry(updated);
+      }
+      return updated;
+    });
 
     if (wonAmount > 0) {
       const newTx: TransactionRecord = {

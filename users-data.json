@@ -2,15 +2,23 @@
   "9510006797": {
     "phone": "9510006797",
     "name": "Owner",
-    "invitationCode": "883921",
-    "balance": 50000,
-    "totalIncome": 40,
+    "invitationCode": "169884",
+    "balance": 1005,
+    "totalIncome": 1005,
     "totalRecharge": 0,
     "teamMembersCount": 0,
-    "activeMembersToday": 1,
+    "activeMembersToday": 0,
     "teamMembers": [],
     "transactions": [],
-    "updatedAt": 1791692938880,
-    "teamRecharge": 1000
+    "updatedAt": 1791695478912,
+    "teamRecharge": 0,
+    "id": "006797",
+    "vipLevel": "VIP5",
+    "spinsLeft": 0,
+    "level1CommissionRate": 10,
+    "isLoggedIn": true,
+    "avatar": "https://i.ibb.co/JWBdHWpv/profile-picture.png",
+    "role": "owner",
+    "uid": "1j80WzkvbMZlrKuqmlj21H7ngNo1"
   }
 }

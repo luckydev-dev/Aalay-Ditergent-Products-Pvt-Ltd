@@ -883,7 +883,7 @@ Output JSON only in this exact format:
         phone: cleanPhone,
         balance: typeof profile.balance === 'number' ? profile.balance : (existing.balance ?? 40),
         totalIncome: typeof profile.totalIncome === 'number' ? profile.totalIncome : (existing.totalIncome ?? 40),
-        totalRecharge: typeof profile.totalRecharge === 'number' ? profile.totalRecharge : (existing.totalRecharge ?? 0),
+        totalRecharge: typeof profile.totalRecharge === 'number' ? (profile.totalRecharge === 50000 ? 0 : profile.totalRecharge) : (existing.totalRecharge === 50000 ? 0 : (existing.totalRecharge ?? 0)),
         invitationCode: profile.invitationCode || existing.invitationCode || String(Math.floor(100000 + Math.random() * 900000)),
         referredBy: profile.referredBy || existing.referredBy,
         teamMembersCount: typeof profile.teamMembersCount === 'number' ? profile.teamMembersCount : (existing.teamMembersCount ?? 0),
